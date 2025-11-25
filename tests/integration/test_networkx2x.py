@@ -334,9 +334,7 @@ def test_modify_graph_remove_nodes_to_ase():
     original_num_nodes = graph.number_of_nodes()
 
     # Identify hydrogen nodes to remove (keep only heavy atoms)
-    heavy_atom_nodes = [
-        n for n, d in graph.nodes(data=True) if d["atomic_number"] != 1
-    ]
+    heavy_atom_nodes = [n for n, d in graph.nodes(data=True) if d["atomic_number"] != 1]
 
     # Create modified graph by removing hydrogen nodes
     modified_graph = graph.subgraph(heavy_atom_nodes).copy()
@@ -473,9 +471,7 @@ def test_modify_graph_add_nodes_to_rdkit():
 
     # Find a hydrogen bonded to the carbon
     hydrogen_neighbors = [
-        n
-        for n in graph.neighbors(carbon_node)
-        if graph.nodes[n]["atomic_number"] == 1
+        n for n in graph.neighbors(carbon_node) if graph.nodes[n]["atomic_number"] == 1
     ]
     assert len(hydrogen_neighbors) > 0
     h_to_replace = hydrogen_neighbors[0]
