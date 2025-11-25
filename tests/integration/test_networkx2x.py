@@ -412,8 +412,8 @@ def test_modify_graph_add_nodes_to_ase():
     """
     import numpy as np
 
-    # Create water molecule
-    atoms = molify.smiles2atoms("O")  # Water
+    # Create water molecule (O with explicit hydrogens added by smiles2atoms)
+    atoms = molify.smiles2atoms("O")  # H2O with 3 atoms
     graph = molify.ase2networkx(atoms)
 
     original_num_nodes = graph.number_of_nodes()
@@ -461,9 +461,10 @@ def test_modify_graph_add_nodes_to_rdkit():
     """
     import numpy as np
 
-    # Create methane molecule
-    atoms = molify.smiles2atoms("C")  # Methane (CH4)
+    # Create methane molecule (C with explicit hydrogens added by smiles2atoms)
+    atoms = molify.smiles2atoms("C")  # CH4 with 5 atoms (1 C + 4 H)
     graph = molify.ase2networkx(atoms)
+    original_num_atoms = graph.number_of_nodes()
 
     # Find a carbon atom
     carbon_nodes = [n for n, d in graph.nodes(data=True) if d["atomic_number"] == 6]
@@ -499,10 +500,10 @@ def test_modify_graph_add_nodes_to_rdkit():
     mol = molify.networkx2rdkit(graph, suggestions=[])
 
     # Verify the RDKit molecule has the expected structure
-    # Original CH4 had 5 atoms, we removed 1 H and added 1 C = 5 atoms
-    assert mol.GetNumAtoms() == 5
+    # We removed 1 H and added 1 C, so atom count stays the same
+    assert mol.GetNumAtoms() == original_num_atoms
 
-    # Should have 2 carbons now
+    # Should have 2 carbons now (originally 1)
     carbon_count = sum(1 for atom in mol.GetAtoms() if atom.GetAtomicNum() == 6)
     assert carbon_count == 2
 
