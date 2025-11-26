@@ -1,3 +1,0 @@
-[submodule "external/packmol"]
-	path = external/packmol
-	url = https://github.com/m3g/packmol.git

@@ -9,7 +9,6 @@ import numpy as np
 from ase.io.proteindatabank import write_proteindatabank
 from rdkit import Chem
 
-from molify.packmol import get_packmol_binary
 from molify.utils import calculate_box_dimensions
 
 log = logging.getLogger(__name__)
@@ -147,7 +146,7 @@ def pack(
     seed: int = 42,
     tolerance: float = 2,
     verbose: bool = False,
-    packmol: str | None = None,
+    packmol: str = "packmol",
     pbc: bool = True,
     output_format: FORMAT = "pdb",
     ratio: tuple[float, float, float] = (1.0, 1.0, 1.0),
@@ -169,11 +168,8 @@ def pack(
         The tolerance for the packing algorithm, by default 2.
     verbose : bool, optional
         If True, enables logging of the packing process, by default False.
-    packmol : str or None, optional
-        The path to the packmol executable. If None (default), uses the bundled
-        packmol binary shipped with molify. You can provide a custom path to
-        use a different packmol installation (e.g., "packmol" to use system
-        PATH, or "/path/to/custom/packmol").
+    packmol : str, optional
+        The path to the packmol executable.
     pbc : bool, optional
         Ensure tolerance across periodic boundaries, by default True.
     output_format : str, optional
@@ -199,10 +195,6 @@ def pack(
     >>> print(packed_system)
     Atoms(symbols='C10H44O12', pbc=True, cell=[8.4, 8.4, 8.4])
     """
-    # Use bundled packmol binary if not specified
-    if packmol is None:
-        packmol = str(get_packmol_binary())
-
     selected_images = _select_conformers(data, counts, seed)
     cell = calculate_box_dimensions(images=selected_images, density=density)
 

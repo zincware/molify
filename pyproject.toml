@@ -1,6 +1,6 @@
 [project]
 name = "molify"
-version = "0.2.0"
+version = "0.2.1"
 description = "Molecular Structure Interface with RDKit, ASE, Packmol and NetworkX"
 readme = "README.md"
 license = "Apache-2.0"
@@ -12,6 +12,7 @@ dependencies = [
     "ase>=3.25.0",
     "matplotlib>=3.10.1",
     "networkx>=3.4.2",
+    "packmol>=21.1.2",
     "rdkit>=2024",
 ]
 
@@ -37,9 +38,6 @@ vesin = [
     "vesin>=0.3.7",
 ]
 
-[project.scripts]
-packmol = "molify.packmol:packmol_cli"
-
 [project.urls]
 Repository = "https://github.com/zincware/molify"
 Releases = "https://github.com/zincware/molify/releases"
@@ -56,12 +54,6 @@ extend-ignore = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.hatch.build.hooks.custom]
-path = "hatch_build.py"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/molify"]
 
 [tool.codespell]
 ignore-words-list = "basf"
