@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+authors:
+- family-names: "Zills"
+  given-names: "Fabian"
+  orcid: "https://orcid.org/0000-0002-6936-4692"
+title: "molify: Molecular Structure Interface"
+url: "https://github.com/zincware/molify"
+license: Apache-2.0
