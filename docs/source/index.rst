@@ -156,17 +156,10 @@ More information and installation instructions can be found in the `UV documenta
 
 .. code-block:: console
 
-   (.venv) $ git clone --recursive https://github.com/zincware/molify
+   (.venv) $ git clone https://github.com/zincware/molify
    (.venv) $ cd molify
    (.venv) $ uv sync
    (.venv) $ source .venv/bin/activate
-
-If you haven't used `--recursive` you can also initialize the submodules later:
-
-.. code-block:: console
-
-   (.venv) $ git submodule update --init --recursive
-
 
 .. toctree::
    :maxdepth: 2
