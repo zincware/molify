@@ -34,6 +34,10 @@ docs = [
 
 [project.optional-dependencies]
 
+xyzgraph = [
+    "xyzgraph>=1.6.1",
+]
+
 vesin = [
     "vesin>=0.3.7",
 ]
