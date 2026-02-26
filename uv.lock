@@ -1231,7 +1231,7 @@ wheels = [
 
 [[package]]
 name = "molify"
-version = "0.2.1"
+version = "0.2.2"
 source = { editable = "." }
 dependencies = [
     { name = "ase" },
@@ -1245,6 +1245,9 @@ dependencies = [
 [package.optional-dependencies]
 vesin = [
     { name = "vesin" },
+]
+xyzgraph = [
+    { name = "xyzgraph" },
 ]
 
 [package.dev-dependencies]
@@ -1272,8 +1275,9 @@ requires-dist = [
     { name = "packmol", specifier = ">=21.1.2" },
     { name = "rdkit", specifier = ">=2024" },
     { name = "vesin", marker = "extra == 'vesin'", specifier = ">=0.3.7" },
+    { name = "xyzgraph", marker = "extra == 'xyzgraph'", specifier = ">=1.6.1" },
 ]
-provides-extras = ["vesin"]
+provides-extras = ["xyzgraph", "vesin"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -2673,4 +2677,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0b/02/ae6ceac1baeda530866a85075641cec12989bd8d31af6d5ab4a3e8c92f47/webencodings-0.5.1.tar.gz", hash = "sha256:b36a1c245f2d304965eb4e0a82848379241dc04b865afcc4aab16748587e1923", size = 9721, upload-time = "2017-04-05T20:21:34.189Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/24/2a3e3df732393fed8b3ebf2ec078f05546de641fe1b667ee316ec1dcf3b7/webencodings-0.5.1-py2.py3-none-any.whl", hash = "sha256:a0af1213f3c2226497a97e2b3aa01a7e4bee4f403f95be16fc9acd2947514a78", size = 11774, upload-time = "2017-04-05T20:21:32.581Z" },
+]
+
+[[package]]
+name = "xyzgraph"
+version = "1.6.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "networkx", version = "3.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "networkx", version = "3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.3.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "rdkit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/21/ec/f82fe482987523cb861561f27ce9cee3ae99c0cb8c4fec07440453f80d4b/xyzgraph-1.6.1.tar.gz", hash = "sha256:e005eacf55a73f5208b99c7665ba317709b9274374b511062881f761a3eaeef1", size = 142683, upload-time = "2026-02-23T10:16:28.55Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9c/ab/5867ddf13cc6c31286324cfdc4e5899ef6bba6b1eda6e551a1c9c936e7a4/xyzgraph-1.6.1-py3-none-any.whl", hash = "sha256:8d3b1b96eb9410698c3609baa88f9016e37d2586fe8db89e3f35e914ecdf3049", size = 106653, upload-time = "2026-02-23T10:16:26.887Z" },
 ]

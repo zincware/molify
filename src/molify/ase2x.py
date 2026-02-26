@@ -1,3 +1,5 @@
+from typing import Literal
+
 import ase
 import networkx as nx
 import numpy as np
@@ -152,7 +154,7 @@ def ase2networkx(
     atoms: ase.Atoms,
     pbc: bool = True,
     scale: float = 1.2,
-    engine: str = "auto",
+    engine: Literal["auto", "rdkit", "xyzgraph"] = "auto",
     charge: int | None = None,
     **engine_kwargs,
 ) -> nx.Graph:
@@ -223,21 +225,9 @@ def ase2networkx(
     if len(atoms) == 0:
         return nx.Graph()
 
-    # Resolve engine
-    use_xyzgraph = False
-    if engine == "xyzgraph":
-        if _xyzgraph is None:
-            raise ImportError(
-                "xyzgraph is required for engine='xyzgraph'. "
-                "Install it with: pip install molify[xyzgraph]"
-            )
-        use_xyzgraph = True
-
-    if use_xyzgraph:
-        return _ase2networkx_xyzgraph(atoms, charge=charge, **engine_kwargs)
-
     charges = atoms.get_initial_charges()
 
+    # Use explicit connectivity when present (regardless of engine)
     if "connectivity" in atoms.info:
         connectivity = atoms.info["connectivity"]
         # ensure connectivity is list[tuple[int, int, float|None]] and
@@ -247,6 +237,20 @@ def ase2networkx(
             for i, j, bond_order in connectivity
         ]
         return _create_graph_from_connectivity(atoms, connectivity, charges)
+
+    # Resolve engine (only reached when no explicit connectivity)
+    use_xyzgraph = False
+    if engine == "xyzgraph":
+        if _xyzgraph is None:
+            raise ImportError(
+                "xyzgraph is required for engine='xyzgraph'. "
+                "Install it with: pip install molify[xyzgraph]"
+            )
+        use_xyzgraph = True
+    # engine == "auto" or "rdkit" -> use_xyzgraph stays False
+
+    if use_xyzgraph:
+        return _ase2networkx_xyzgraph(atoms, charge=charge, **engine_kwargs)
 
     connectivity_matrix, non_bonding_atomic_numbers = _compute_connectivity_matrix(
         atoms, scale, pbc
@@ -264,7 +268,13 @@ def ase2networkx(
     return graph
 
 
-def ase2rdkit(atoms: ase.Atoms, suggestions: list[str] | None = None) -> Chem.Mol:
+def ase2rdkit(
+    atoms: ase.Atoms,
+    suggestions: list[str] | None = None,
+    engine: Literal["auto", "rdkit", "xyzgraph"] = "auto",
+    charge: int | None = None,
+    **engine_kwargs,
+) -> Chem.Mol:
     """Convert an ASE Atoms object to an RDKit molecule.
 
     Convenience function that chains:
@@ -277,6 +287,13 @@ def ase2rdkit(atoms: ase.Atoms, suggestions: list[str] | None = None) -> Chem.Mo
     suggestions : list[str], optional
         SMILES/SMARTS patterns for bond order determination.
         Passed directly to networkx2rdkit().
+    engine : Literal["auto", "rdkit", "xyzgraph"], optional
+        Backend for bond detection and bond order assignment (default "auto").
+        Passed through to ase2networkx().
+    charge : int or None, optional
+        Total system charge, forwarded to xyzgraph (default is None).
+    **engine_kwargs
+        Additional keyword arguments forwarded to the engine backend.
 
     Returns
     -------
@@ -296,5 +313,5 @@ def ase2rdkit(atoms: ase.Atoms, suggestions: list[str] | None = None) -> Chem.Mo
 
     from molify import ase2networkx, networkx2rdkit
 
-    graph = ase2networkx(atoms)
+    graph = ase2networkx(atoms, engine=engine, charge=charge, **engine_kwargs)
     return networkx2rdkit(graph, suggestions=suggestions)
