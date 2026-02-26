@@ -9,6 +9,11 @@ try:
 except ImportError:
     vesin = None
 
+try:
+    import xyzgraph as _xyzgraph
+except ImportError:
+    _xyzgraph = None
+
 
 def _create_graph_from_connectivity(
     atoms: ase.Atoms, connectivity, charges
@@ -94,10 +99,62 @@ def _add_node_properties(
             graph.nodes[i]["charge"] = 1.0
 
 
+def _xyzgraph_to_molify_graph(
+    xg_graph: nx.Graph, atoms: ase.Atoms
+) -> nx.Graph:
+    """Convert an xyzgraph-produced NetworkX graph to molify's schema."""
+    from ase.data import atomic_numbers
+
+    graph = nx.Graph()
+    graph.graph["pbc"] = atoms.pbc
+    graph.graph["cell"] = atoms.cell
+
+    for node_id, data in xg_graph.nodes(data=True):
+        graph.add_node(
+            node_id,
+            atomic_number=atomic_numbers[data["symbol"]],
+            position=np.array(data["position"]),
+            original_index=node_id,
+            charge=float(data.get("formal_charge", 0)),
+        )
+
+    for u, v, data in xg_graph.edges(data=True):
+        graph.add_edge(u, v, bond_order=data["bond_order"])
+
+    return graph
+
+
+def _ase2networkx_xyzgraph(
+    atoms: ase.Atoms,
+    charge: int | None = None,
+    **engine_kwargs,
+) -> nx.Graph:
+    """Build molecular graph using xyzgraph's cheminformatics pipeline."""
+    from ase.data import chemical_symbols
+    from molify.utils import unwrap_structures
+
+    unwrapped = unwrap_structures(atoms, engine="rdkit")
+
+    xyzgraph_atoms = [
+        (chemical_symbols[atom.number], tuple(atom.position))
+        for atom in unwrapped
+    ]
+
+    if charge is None:
+        charge = int(sum(unwrapped.get_initial_charges()))
+
+    xg_graph = _xyzgraph.build_graph(xyzgraph_atoms, charge=charge, **engine_kwargs)
+
+    return _xyzgraph_to_molify_graph(xg_graph, atoms)
+
+
 def ase2networkx(
     atoms: ase.Atoms,
     pbc: bool = True,
     scale: float = 1.2,
+    engine: str = "auto",
+    charge: int | None = None,
+    **engine_kwargs,
 ) -> nx.Graph:
     """Convert an ASE Atoms object to a NetworkX graph.
 
@@ -116,6 +173,15 @@ def ase2networkx(
     scale : float, optional
         Scaling factor for the covalent radii when determining bond cutoffs
         (default is 1.2).
+    engine : str, optional
+        Backend engine for bond determination. One of ``"auto"``,
+        ``"rdkit"``, or ``"xyzgraph"`` (default is ``"auto"``).
+        ``"auto"`` uses xyzgraph if installed, otherwise falls back
+        to the distance-based/rdkit pipeline.
+    charge : int or None, optional
+        Total molecular charge forwarded to xyzgraph (default is None).
+    **engine_kwargs
+        Additional keyword arguments forwarded to the engine backend.
 
     Returns
     -------
@@ -156,6 +222,20 @@ def ase2networkx(
     """
     if len(atoms) == 0:
         return nx.Graph()
+
+    # Resolve engine
+    use_xyzgraph = False
+    if engine == "xyzgraph":
+        if _xyzgraph is None:
+            raise ImportError(
+                "xyzgraph is required for engine='xyzgraph'. "
+                "Install it with: pip install molify[xyzgraph]"
+            )
+        use_xyzgraph = True
+
+    if use_xyzgraph:
+        return _ase2networkx_xyzgraph(atoms, charge=charge, **engine_kwargs)
+
     charges = atoms.get_initial_charges()
 
     if "connectivity" in atoms.info:
