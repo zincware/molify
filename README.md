@@ -57,5 +57,27 @@ print(box)
 >>> Atoms(symbols='C10H44O12', pbc=True, cell=[8.4, 8.4, 8.4])
 ```
 
+## Optional Dependencies
+
+### xyzgraph
+
+For more robust bond order and formal charge determination, install the
+[xyzgraph](https://github.com/aligfellow/xyzgraph) backend:
+
+```bash
+pip install molify[xyzgraph]
+```
+
+Then pass `engine="xyzgraph"` to `ase2networkx` or `ase2rdkit`:
+
+```py
+from molify import smiles2atoms, ase2rdkit
+
+atoms = smiles2atoms("C=O")
+atoms.info.pop("connectivity")  # remove known connectivity to trigger engine
+
+mol = ase2rdkit(atoms, engine="xyzgraph")
+```
+
 Many additional features are described in the
 [documentation](https://zincware.github.io/rdkit2ase/).
