@@ -1,4 +1,3 @@
-import numpy.testing as npt
 import pytest
 
 xyzgraph = pytest.importorskip("xyzgraph")
@@ -150,7 +149,6 @@ def test_ase2rdkit_xyzgraph_engine_ethanol():
 
 def test_ase2rdkit_xyzgraph_charge_forwarded():
     """ase2rdkit forwards charge parameter to xyzgraph engine."""
-    from rdkit import Chem
 
     atoms = molify.smiles2atoms("[OH-]")
     atoms.info.pop("connectivity")

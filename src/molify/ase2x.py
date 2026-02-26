@@ -101,9 +101,7 @@ def _add_node_properties(
             graph.nodes[i]["charge"] = 1.0
 
 
-def _xyzgraph_to_molify_graph(
-    xg_graph: nx.Graph, atoms: ase.Atoms
-) -> nx.Graph:
+def _xyzgraph_to_molify_graph(xg_graph: nx.Graph, atoms: ase.Atoms) -> nx.Graph:
     """Convert an xyzgraph-produced NetworkX graph to molify's schema."""
     from ase.data import atomic_numbers
 
@@ -133,13 +131,13 @@ def _ase2networkx_xyzgraph(
 ) -> nx.Graph:
     """Build molecular graph using xyzgraph's cheminformatics pipeline."""
     from ase.data import chemical_symbols
+
     from molify.utils import unwrap_structures
 
     unwrapped = unwrap_structures(atoms, engine="rdkit")
 
     xyzgraph_atoms = [
-        (chemical_symbols[atom.number], tuple(atom.position))
-        for atom in unwrapped
+        (chemical_symbols[atom.number], tuple(atom.position)) for atom in unwrapped
     ]
 
     if charge is None:
