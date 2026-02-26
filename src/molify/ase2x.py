@@ -178,8 +178,9 @@ def ase2networkx(
     engine : str, optional
         Backend engine for bond determination. One of ``"auto"``,
         ``"rdkit"``, or ``"xyzgraph"`` (default is ``"auto"``).
-        ``"auto"`` uses xyzgraph if installed, otherwise falls back
-        to the distance-based/rdkit pipeline.
+        ``"auto"`` uses the distance-based/rdkit pipeline.
+        ``"xyzgraph"`` uses xyzgraph for bond order and charge
+        determination (requires ``pip install molify[xyzgraph]``).
     charge : int or None, optional
         Total molecular charge forwarded to xyzgraph (default is None).
     **engine_kwargs
@@ -208,9 +209,11 @@ def ase2networkx(
     Connectivity is determined by:
 
     1. Using explicit connectivity if present in atoms.info
-    2. Otherwise using distance-based cutoffs (edges will have bond_order=None)
+    2. With ``engine="xyzgraph"``, using xyzgraph's cheminformatics pipeline
+       (provides bond orders and formal charges)
+    3. Otherwise using distance-based cutoffs (edges will have bond_order=None)
 
-    To get bond orders, pass the graph to networkx2rdkit().
+    To get bond orders without xyzgraph, pass the graph to networkx2rdkit().
 
     Examples
     --------
