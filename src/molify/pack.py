@@ -9,6 +9,7 @@ import numpy as np
 from ase.io.proteindatabank import write_proteindatabank
 from rdkit import Chem
 
+from molify.constants import GraphAttr
 from molify.utils import calculate_box_dimensions
 
 log = logging.getLogger(__name__)
@@ -125,14 +126,14 @@ def _extract_atom_arrays(
             )
             packed_atoms.arrays[key] = concatenated_array
 
-    if all("connectivity" in atoms.info for atoms in selected_images):
+    if all(GraphAttr.CONNECTIVITY in atoms.info for atoms in selected_images):
         bonds = []
         offset = 0
         for atoms in selected_images:
-            for bond in atoms.info["connectivity"]:
+            for bond in atoms.info[GraphAttr.CONNECTIVITY]:
                 bonds.append((bond[0] + offset, bond[1] + offset, bond[2]))
             offset += len(atoms)
-        packed_atoms.info["connectivity"] = bonds
+        packed_atoms.info[GraphAttr.CONNECTIVITY] = bonds
     charges = np.concatenate([atom.get_initial_charges() for atom in selected_images])
     if any(charge != 0 for charge in charges):
         packed_atoms.set_initial_charges(charges)

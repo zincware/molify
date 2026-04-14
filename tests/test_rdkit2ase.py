@@ -5,7 +5,8 @@ import pytest
 import rdkit
 from rdkit import Chem
 
-from molify import ase2rdkit, rdkit2ase, smiles2atoms
+from molify import ase2rdkit, rdkit2ase, rdkit2networkx, smiles2atoms
+from molify.constants import NodeAttr
 
 
 @pytest.fixture
@@ -147,3 +148,58 @@ def test_rdkit2ase_nacn():
     ]
     assert atoms.get_initial_charges().tolist() == [-1, 0, 1]
     assert atoms.get_atomic_numbers().tolist() == [6, 7, 11]
+
+
+# ============================================================================
+# Tests for original_index preservation (GitHub issue #104)
+# ============================================================================
+
+
+class TestRdkit2AseOriginalIndex:
+    """Test that rdkit2ase preserves original_index from RDKit atom properties."""
+
+    def test_original_index_carried_from_rdkit_to_ase(self):
+        """If RDKit atoms have original_index, store it."""
+        mol = Chem.RWMol(Chem.MolFromSmiles("CO"))
+        mol = Chem.AddHs(mol)
+        # Set original_index on each atom (simulating a prior networkx2rdkit conversion)
+        for atom in mol.GetAtoms():
+            atom.SetIntProp(NodeAttr.ORIGINAL_INDEX, atom.GetIdx() + 10)
+
+        atoms = rdkit2ase(mol)
+
+        assert NodeAttr.ORIGINAL_INDEX in atoms.info
+        expected = [atom.GetIdx() + 10 for atom in mol.GetAtoms()]
+        assert atoms.info[NodeAttr.ORIGINAL_INDEX] == expected
+
+    def test_no_original_index_when_rdkit_atoms_lack_property(self):
+        """No original_index added when absent from RDKit atoms."""
+        mol = Chem.MolFromSmiles("CO")
+        atoms = rdkit2ase(mol)
+
+        assert NodeAttr.ORIGINAL_INDEX not in atoms.info
+
+
+class TestRdkit2NetworkxOriginalIndex:
+    """Test that rdkit2networkx preserves original_index from RDKit atom properties."""
+
+    def test_original_index_carried_from_rdkit_to_networkx(self):
+        """If RDKit atoms have original_index, use it."""
+        mol = Chem.RWMol(Chem.MolFromSmiles("CO"))
+        mol = Chem.AddHs(mol)
+        for atom in mol.GetAtoms():
+            atom.SetIntProp(NodeAttr.ORIGINAL_INDEX, atom.GetIdx() + 20)
+
+        graph = rdkit2networkx(mol)
+
+        for node_id, attributes in graph.nodes(data=True):
+            assert attributes[NodeAttr.ORIGINAL_INDEX] == node_id + 20
+
+    def test_falls_back_to_getidx_without_property(self):
+        """Falls back to GetIdx() without original_index."""
+        mol = Chem.MolFromSmiles("CO")
+
+        graph = rdkit2networkx(mol)
+
+        for node_id, attributes in graph.nodes(data=True):
+            assert attributes[NodeAttr.ORIGINAL_INDEX] == node_id

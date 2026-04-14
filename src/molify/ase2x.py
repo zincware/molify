@@ -4,6 +4,8 @@ import numpy as np
 from ase.neighborlist import natural_cutoffs, neighbor_list
 from rdkit import Chem
 
+from molify.constants import EdgeAttr, GraphAttr, NodeAttr
+
 try:
     import vesin
 except ImportError:
@@ -15,20 +17,25 @@ def _create_graph_from_connectivity(
 ) -> nx.Graph:
     """Create NetworkX graph from explicit connectivity information."""
     graph = nx.Graph()
-    graph.graph["pbc"] = atoms.pbc
-    graph.graph["cell"] = atoms.cell
+    graph.graph[GraphAttr.PBC] = atoms.pbc
+    graph.graph[GraphAttr.CELL] = atoms.cell
+
+    stored_indices = atoms.info.get(NodeAttr.ORIGINAL_INDEX)
 
     for i, atom in enumerate(atoms):
+        original_index = stored_indices[i] if stored_indices is not None else atom.index
         graph.add_node(
             i,
-            position=atom.position,
-            atomic_number=int(atom.number),
-            original_index=atom.index,
-            charge=charges[i],
+            **{
+                NodeAttr.POSITION: atom.position,
+                NodeAttr.ATOMIC_NUMBER: int(atom.number),
+                NodeAttr.ORIGINAL_INDEX: original_index,
+                NodeAttr.CHARGE: charges[i],
+            },
         )
 
     for i, j, bond_order in connectivity:
-        graph.add_edge(i, j, bond_order=bond_order)
+        graph.add_edge(i, j, **{EdgeAttr.BOND_ORDER: bond_order})
     return graph
 
 
@@ -85,13 +92,16 @@ def _add_node_properties(
     graph: nx.Graph, atoms: ase.Atoms, charges, non_bonding_atomic_numbers
 ):
     """Add node properties to the graph."""
+    stored_indices = atoms.info.get(NodeAttr.ORIGINAL_INDEX)
+
     for i, atom in enumerate(atoms):
-        graph.nodes[i]["position"] = atom.position
-        graph.nodes[i]["atomic_number"] = int(atom.number)
-        graph.nodes[i]["original_index"] = atom.index
-        graph.nodes[i]["charge"] = float(charges[i])
+        original_index = stored_indices[i] if stored_indices is not None else atom.index
+        graph.nodes[i][NodeAttr.POSITION] = atom.position
+        graph.nodes[i][NodeAttr.ATOMIC_NUMBER] = int(atom.number)
+        graph.nodes[i][NodeAttr.ORIGINAL_INDEX] = original_index
+        graph.nodes[i][NodeAttr.CHARGE] = float(charges[i])
         if atom.number in non_bonding_atomic_numbers:
-            graph.nodes[i]["charge"] = 1.0
+            graph.nodes[i][NodeAttr.CHARGE] = 1.0
 
 
 def ase2networkx(
@@ -158,8 +168,8 @@ def ase2networkx(
         return nx.Graph()
     charges = atoms.get_initial_charges()
 
-    if "connectivity" in atoms.info:
-        connectivity = atoms.info["connectivity"]
+    if GraphAttr.CONNECTIVITY in atoms.info:
+        connectivity = atoms.info[GraphAttr.CONNECTIVITY]
         # ensure connectivity is list[tuple[int, int, float|None]] and
         # does not contain np.generic
         connectivity = [
@@ -174,12 +184,12 @@ def ase2networkx(
 
     graph = nx.from_numpy_array(connectivity_matrix, edge_attr=None)
     for u, v in graph.edges():
-        graph.edges[u, v]["bond_order"] = None
+        graph.edges[u, v][EdgeAttr.BOND_ORDER] = None
 
     _add_node_properties(graph, atoms, charges, non_bonding_atomic_numbers)
 
-    graph.graph["pbc"] = atoms.pbc
-    graph.graph["cell"] = atoms.cell
+    graph.graph[GraphAttr.PBC] = atoms.pbc
+    graph.graph[GraphAttr.CELL] = atoms.cell
 
     return graph
 

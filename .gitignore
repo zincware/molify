@@ -161,5 +161,7 @@ cython_debug/
 tmp/
 .DS_Store
 
+# Git worktrees
+.worktrees/
 # hatch-vcs generated version file
 src/molify/_version.py
