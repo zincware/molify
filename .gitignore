@@ -160,3 +160,6 @@ cython_debug/
 #.idea/
 tmp/
 .DS_Store
+
+# hatch-vcs generated version file
+src/molify/_version.py
