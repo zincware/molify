@@ -3,6 +3,7 @@ import pytest
 from rdkit import Chem
 
 import molify
+from molify.constants import EdgeAttr, NodeAttr
 
 
 class SMILES:
@@ -601,3 +602,94 @@ def test_modify_graph_combined_add_remove_to_rdkit():
     assert 9 in atom_nums  # Fluorine should be present
     assert 6 in atom_nums  # Carbon should be present
     assert 8 in atom_nums  # Oxygen should be present
+
+
+# ============================================================================
+# Tests for original_index preservation (GitHub issue #104)
+# ============================================================================
+
+
+class TestNetworkx2RdkitOriginalIndex:
+    """Test that networkx2rdkit preserves original_index from graph nodes."""
+
+    def test_original_index_stored_on_rdkit_atoms(self):
+        """original_index should be an RDKit atom int property."""
+        atoms = molify.smiles2atoms("CCO")
+        graph = molify.ase2networkx(atoms)
+
+        mol = molify.networkx2rdkit(graph)
+
+        for i, (node_id, attributes) in enumerate(graph.nodes(data=True)):
+            rdkit_atom = mol.GetAtomWithIdx(i)
+            assert rdkit_atom.HasProp(NodeAttr.ORIGINAL_INDEX)
+            assert (
+                rdkit_atom.GetIntProp(NodeAttr.ORIGINAL_INDEX)
+                == attributes[NodeAttr.ORIGINAL_INDEX]
+            )
+
+    def test_original_index_preserved_with_subgraph(self):
+        """original_index should be preserved even with non-sequential node IDs."""
+        atoms = molify.smiles2atoms("CCO")
+        graph = molify.ase2networkx(atoms)
+
+        heavy_atom_nodes = [
+            n for n, d in graph.nodes(data=True) if d[NodeAttr.ATOMIC_NUMBER] != 1
+        ]
+        subgraph = graph.subgraph(heavy_atom_nodes).copy()
+
+        mol = molify.networkx2rdkit(subgraph)
+
+        for i, (node_id, attributes) in enumerate(subgraph.nodes(data=True)):
+            rdkit_atom = mol.GetAtomWithIdx(i)
+            assert (
+                rdkit_atom.GetIntProp(NodeAttr.ORIGINAL_INDEX)
+                == attributes[NodeAttr.ORIGINAL_INDEX]
+            )
+
+    def test_original_index_preserved_with_none_bond_orders(self):
+        """original_index preserved with auto bond orders."""
+        atoms = molify.smiles2atoms("CC")
+        graph = molify.ase2networkx(atoms)
+
+        for u, v in graph.edges():
+            graph.edges[u, v][EdgeAttr.BOND_ORDER] = None
+
+        mol = molify.networkx2rdkit(graph, suggestions=[])
+
+        for i, (node_id, attributes) in enumerate(graph.nodes(data=True)):
+            rdkit_atom = mol.GetAtomWithIdx(i)
+            assert (
+                rdkit_atom.GetIntProp(NodeAttr.ORIGINAL_INDEX)
+                == attributes[NodeAttr.ORIGINAL_INDEX]
+            )
+
+
+class TestNetworkx2AseOriginalIndex:
+    """Test that networkx2ase preserves original_index from graph nodes."""
+
+    def test_original_index_stored_in_atoms_info(self):
+        """original_index from networkx nodes should be stored in atoms.info."""
+        atoms = molify.smiles2atoms("CCO")
+        graph = molify.ase2networkx(atoms)
+
+        new_atoms = molify.networkx2ase(graph)
+
+        assert NodeAttr.ORIGINAL_INDEX in new_atoms.info
+        expected = [graph.nodes[n][NodeAttr.ORIGINAL_INDEX] for n in graph.nodes]
+        assert new_atoms.info[NodeAttr.ORIGINAL_INDEX] == expected
+
+    def test_original_index_preserved_with_subgraph(self):
+        """original_index should reflect original atom indices, not remapped ones."""
+        atoms = molify.smiles2atoms("CCO")
+        graph = molify.ase2networkx(atoms)
+
+        heavy_atom_nodes = [
+            n for n, d in graph.nodes(data=True) if d[NodeAttr.ATOMIC_NUMBER] != 1
+        ]
+        subgraph = graph.subgraph(heavy_atom_nodes).copy()
+
+        new_atoms = molify.networkx2ase(subgraph)
+
+        assert NodeAttr.ORIGINAL_INDEX in new_atoms.info
+        expected = [subgraph.nodes[n][NodeAttr.ORIGINAL_INDEX] for n in subgraph.nodes]
+        assert new_atoms.info[NodeAttr.ORIGINAL_INDEX] == expected

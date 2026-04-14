@@ -3,6 +3,7 @@ import networkx as nx
 import numpy as np
 from rdkit import Chem
 
+from molify.constants import EdgeAttr, GraphAttr, NodeAttr
 from molify.utils import bond_type_from_order
 
 
@@ -46,27 +47,33 @@ def networkx2ase(graph: nx.Graph) -> ase.Atoms:
     # Create mapping from original node indices to new sequential indices
     node_mapping = {node: i for i, node in enumerate(graph.nodes)}
 
-    positions = np.array([graph.nodes[n]["position"] for n in graph.nodes])
-    numbers = np.array([graph.nodes[n]["atomic_number"] for n in graph.nodes])
-    charges = np.array([graph.nodes[n]["charge"] for n in graph.nodes])
+    positions = np.array([graph.nodes[n][NodeAttr.POSITION] for n in graph.nodes])
+    numbers = np.array([graph.nodes[n][NodeAttr.ATOMIC_NUMBER] for n in graph.nodes])
+    charges = np.array([graph.nodes[n][NodeAttr.CHARGE] for n in graph.nodes])
 
     atoms = ase.Atoms(
         positions=positions,
         numbers=numbers,
         charges=charges,
-        pbc=graph.graph.get("pbc", False),
-        cell=graph.graph.get("cell", None),
+        pbc=graph.graph.get(GraphAttr.PBC, False),
+        cell=graph.graph.get(GraphAttr.CELL, None),
     )
 
     connectivity = []
     for u, v, data in graph.edges(data=True):
-        bond_order = data["bond_order"]
+        bond_order = data[EdgeAttr.BOND_ORDER]
         # Map original node indices to new sequential indices
         new_u = node_mapping[u]
         new_v = node_mapping[v]
         connectivity.append((new_u, new_v, bond_order))
 
-    atoms.info["connectivity"] = connectivity
+    atoms.info[GraphAttr.CONNECTIVITY] = connectivity
+
+    original_indices = [
+        graph.nodes[n].get(NodeAttr.ORIGINAL_INDEX) for n in graph.nodes
+    ]
+    if all(idx is not None for idx in original_indices):
+        atoms.info[NodeAttr.ORIGINAL_INDEX] = original_indices
 
     return atoms
 
@@ -131,7 +138,7 @@ def networkx2rdkit(graph: nx.Graph, suggestions: list[str] | None = None) -> Che
 
     # Check if any edges have bond_order=None and determine them if needed
     has_none_bond_orders = any(
-        data.get("bond_order") is None for u, v, data in graph.edges(data=True)
+        data.get(EdgeAttr.BOND_ORDER) is None for u, v, data in graph.edges(data=True)
     )
 
     if has_none_bond_orders:
@@ -141,7 +148,7 @@ def networkx2rdkit(graph: nx.Graph, suggestions: list[str] | None = None) -> Che
 
         # Verify all bond orders are now determined
         for u, v, data in graph.edges(data=True):
-            bond_order = data.get("bond_order")
+            bond_order = data.get(EdgeAttr.BOND_ORDER)
             if bond_order is None:
                 raise ValueError(
                     f"Failed to determine bond order for edge ({u}, {v}).\n"
@@ -159,22 +166,29 @@ def networkx2rdkit(graph: nx.Graph, suggestions: list[str] | None = None) -> Che
     nx_to_rdkit_atom_map = {}
 
     for node_id, attributes in graph.nodes(data=True):
-        atomic_number = attributes.get("atomic_number")
-        charge = attributes.get("charge", 0)
+        atomic_number = attributes.get(NodeAttr.ATOMIC_NUMBER)
+        charge = attributes.get(NodeAttr.CHARGE, 0)
 
         if atomic_number is None:
-            raise ValueError(f"Node {node_id} is missing 'atomic_number' attribute.")
+            raise ValueError(
+                f"Node {node_id} is missing '{NodeAttr.ATOMIC_NUMBER}' attribute."
+            )
 
         atom = Chem.Atom(int(atomic_number))
         atom.SetFormalCharge(int(charge))
+        original_index = attributes.get(NodeAttr.ORIGINAL_INDEX)
+        if original_index is not None:
+            atom.SetIntProp(NodeAttr.ORIGINAL_INDEX, int(original_index))
         idx = mol.AddAtom(atom)
         nx_to_rdkit_atom_map[node_id] = idx
 
     for u, v, data in graph.edges(data=True):
-        bond_order = data.get("bond_order")
+        bond_order = data.get(EdgeAttr.BOND_ORDER)
 
         if bond_order is None:
-            raise ValueError(f"Edge ({u}, {v}) is missing 'bond_order' attribute.")
+            raise ValueError(
+                f"Edge ({u}, {v}) is missing '{EdgeAttr.BOND_ORDER}' attribute."
+            )
 
         mol.AddBond(
             nx_to_rdkit_atom_map[u],

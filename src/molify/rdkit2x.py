@@ -3,6 +3,8 @@ import networkx as nx
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
+from molify.constants import EdgeAttr, GraphAttr, NodeAttr
+
 
 def rdkit2ase(mol: Chem.Mol, seed: int = 42) -> ase.Atoms:
     """Convert an RDKit molecule to an ASE Atoms object.
@@ -45,16 +47,22 @@ def rdkit2ase(mol: Chem.Mol, seed: int = 42) -> ase.Atoms:
         positions=mol.GetConformer().GetPositions(),
         numbers=[atom.GetAtomicNum() for atom in mol.GetAtoms()],
     )
-    atoms.info["smiles"] = smiles
-    atoms.info["connectivity"] = []
+    atoms.info[GraphAttr.SMILES] = smiles
+    atoms.info[GraphAttr.CONNECTIVITY] = []
     for bond in mol.GetBonds():
         a1 = bond.GetBeginAtomIdx()
         a2 = bond.GetEndAtomIdx()
         order = bond.GetBondTypeAsDouble()
-        atoms.info["connectivity"].append((a1, a2, order))
+        atoms.info[GraphAttr.CONNECTIVITY].append((a1, a2, order))
 
     if any(charge != 0 for charge in charges):
         atoms.set_initial_charges(charges)
+
+    if all(atom.HasProp(NodeAttr.ORIGINAL_INDEX) for atom in mol.GetAtoms()):
+        atoms.info[NodeAttr.ORIGINAL_INDEX] = [
+            atom.GetIntProp(NodeAttr.ORIGINAL_INDEX) for atom in mol.GetAtoms()
+        ]
+
     return atoms
 
 
@@ -100,11 +108,18 @@ def rdkit2networkx(mol: Chem.Mol) -> nx.Graph:
     mol = Chem.AddHs(mol)
     graph = nx.Graph()
     for atom in mol.GetAtoms():
+        original_index = (
+            atom.GetIntProp(NodeAttr.ORIGINAL_INDEX)
+            if atom.HasProp(NodeAttr.ORIGINAL_INDEX)
+            else atom.GetIdx()
+        )
         graph.add_node(
             atom.GetIdx(),
-            atomic_number=atom.GetAtomicNum(),
-            original_index=atom.GetIdx(),
-            charge=atom.GetFormalCharge(),
+            **{
+                NodeAttr.ATOMIC_NUMBER: atom.GetAtomicNum(),
+                NodeAttr.ORIGINAL_INDEX: original_index,
+                NodeAttr.CHARGE: atom.GetFormalCharge(),
+            },
         )
 
     for bond in mol.GetBonds():
@@ -120,6 +135,8 @@ def rdkit2networkx(mol: Chem.Mol) -> nx.Graph:
             bond_order = 1.5
 
         graph.add_edge(
-            bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), bond_order=bond_order
+            bond.GetBeginAtomIdx(),
+            bond.GetEndAtomIdx(),
+            **{EdgeAttr.BOND_ORDER: bond_order},
         )
     return graph
