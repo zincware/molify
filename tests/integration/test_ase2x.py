@@ -5,6 +5,7 @@ import pytest
 from rdkit import Chem
 
 import molify
+from molify.constants import GraphAttr, NodeAttr
 
 
 class SMILES:
@@ -343,3 +344,48 @@ def test_ase2networkx_preserves_none_bond_orders_in_connectivity():
     for i, j, bond_order in connectivity_without_orders:
         assert graph.has_edge(i, j)
         assert graph.edges[i, j]["bond_order"] is None
+
+
+class TestAse2NetworkxOriginalIndex:
+    """Test that ase2networkx reads back original_index from atoms.info."""
+
+    def test_reads_stored_original_index_with_connectivity(self):
+        """ase2networkx should use atoms.info['original_index'] when present.
+
+        This tests the _create_graph_from_connectivity path.
+        """
+        atoms = molify.smiles2atoms("CCO")
+        # Manually set non-trivial original_index so the test isn't trivially true
+        atoms.info[NodeAttr.ORIGINAL_INDEX] = list(range(10, 10 + len(atoms)))
+
+        graph = molify.ase2networkx(atoms)
+
+        expected = list(range(10, 10 + len(atoms)))
+        actual = [graph.nodes[n][NodeAttr.ORIGINAL_INDEX] for n in graph.nodes]
+        assert actual == expected
+
+    def test_reads_stored_original_index_without_connectivity(self):
+        """ase2networkx should use atoms.info['original_index'] when present.
+
+        This tests the _add_node_properties path (no connectivity in atoms.info).
+        """
+        atoms = molify.smiles2atoms("CCO")
+        # Store non-trivial original_index, then remove connectivity
+        atoms.info[NodeAttr.ORIGINAL_INDEX] = list(range(10, 10 + len(atoms)))
+        del atoms.info[GraphAttr.CONNECTIVITY]
+
+        graph = molify.ase2networkx(atoms)
+
+        expected = list(range(10, 10 + len(atoms)))
+        actual = [graph.nodes[n][NodeAttr.ORIGINAL_INDEX] for n in graph.nodes]
+        assert actual == expected
+
+    def test_defaults_to_atom_index_without_stored_indices(self):
+        """Without atoms.info['original_index'], use sequential atom.index."""
+        atoms = molify.smiles2atoms("CCO")
+        assert NodeAttr.ORIGINAL_INDEX not in atoms.info
+
+        graph = molify.ase2networkx(atoms)
+
+        for n in graph.nodes:
+            assert graph.nodes[n][NodeAttr.ORIGINAL_INDEX] == n

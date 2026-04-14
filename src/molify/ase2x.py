@@ -20,13 +20,16 @@ def _create_graph_from_connectivity(
     graph.graph[GraphAttr.PBC] = atoms.pbc
     graph.graph[GraphAttr.CELL] = atoms.cell
 
+    stored_indices = atoms.info.get(NodeAttr.ORIGINAL_INDEX)
+
     for i, atom in enumerate(atoms):
+        original_index = stored_indices[i] if stored_indices is not None else atom.index
         graph.add_node(
             i,
             **{
                 NodeAttr.POSITION: atom.position,
                 NodeAttr.ATOMIC_NUMBER: int(atom.number),
-                NodeAttr.ORIGINAL_INDEX: atom.index,
+                NodeAttr.ORIGINAL_INDEX: original_index,
                 NodeAttr.CHARGE: charges[i],
             },
         )
@@ -89,10 +92,13 @@ def _add_node_properties(
     graph: nx.Graph, atoms: ase.Atoms, charges, non_bonding_atomic_numbers
 ):
     """Add node properties to the graph."""
+    stored_indices = atoms.info.get(NodeAttr.ORIGINAL_INDEX)
+
     for i, atom in enumerate(atoms):
+        original_index = stored_indices[i] if stored_indices is not None else atom.index
         graph.nodes[i][NodeAttr.POSITION] = atom.position
         graph.nodes[i][NodeAttr.ATOMIC_NUMBER] = int(atom.number)
-        graph.nodes[i][NodeAttr.ORIGINAL_INDEX] = atom.index
+        graph.nodes[i][NodeAttr.ORIGINAL_INDEX] = original_index
         graph.nodes[i][NodeAttr.CHARGE] = float(charges[i])
         if atom.number in non_bonding_atomic_numbers:
             graph.nodes[i][NodeAttr.CHARGE] = 1.0
