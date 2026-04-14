@@ -619,7 +619,7 @@ class TestNetworkx2RdkitOriginalIndex:
 
         mol = molify.networkx2rdkit(graph)
 
-        for i, (node_id, attributes) in enumerate(graph.nodes(data=True)):
+        for i, (_node_id, attributes) in enumerate(graph.nodes(data=True)):
             rdkit_atom = mol.GetAtomWithIdx(i)
             assert rdkit_atom.HasProp(NodeAttr.ORIGINAL_INDEX)
             assert (
@@ -639,7 +639,7 @@ class TestNetworkx2RdkitOriginalIndex:
 
         mol = molify.networkx2rdkit(subgraph)
 
-        for i, (node_id, attributes) in enumerate(subgraph.nodes(data=True)):
+        for i, (_node_id, attributes) in enumerate(subgraph.nodes(data=True)):
             rdkit_atom = mol.GetAtomWithIdx(i)
             assert (
                 rdkit_atom.GetIntProp(NodeAttr.ORIGINAL_INDEX)
@@ -656,7 +656,7 @@ class TestNetworkx2RdkitOriginalIndex:
 
         mol = molify.networkx2rdkit(graph, suggestions=[])
 
-        for i, (node_id, attributes) in enumerate(graph.nodes(data=True)):
+        for i, (_node_id, attributes) in enumerate(graph.nodes(data=True)):
             rdkit_atom = mol.GetAtomWithIdx(i)
             assert (
                 rdkit_atom.GetIntProp(NodeAttr.ORIGINAL_INDEX)

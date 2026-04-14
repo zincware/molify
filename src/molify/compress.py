@@ -2,6 +2,7 @@ import ase
 import numpy as np
 from ase.cell import Cell
 
+from molify.constants import GraphAttr
 from molify.utils import calculate_box_dimensions
 
 
@@ -28,7 +29,7 @@ def compress(
     if freeze_molecules:
         new_cell = Cell.new(new_dimensions)
         old_cell = atoms.get_cell()
-        connectivity = atoms.info.get("connectivity")
+        connectivity = atoms.info.get(GraphAttr.CONNECTIVITY)
         if connectivity is None:
             raise ValueError("No connectivity info found for freeze_molecules=True")
 

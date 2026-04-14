@@ -3,6 +3,8 @@ import numpy as np
 from rdkit import Chem
 from rdkit.Chem import rdDistGeom
 
+from molify.constants import GraphAttr
+
 
 def get_pf6() -> ase.Atoms:
     directions = np.array(
@@ -23,8 +25,8 @@ def get_pf6() -> ase.Atoms:
 
     atoms = ase.Atoms(symbols=symbols, positions=positions)
 
-    atoms.info["connectivity"] = [(0, i, 1.0) for i in range(1, 7)]
-    atoms.info["smiles"] = "F[P-](F)(F)(F)(F)F"
+    atoms.info[GraphAttr.CONNECTIVITY] = [(0, i, 1.0) for i in range(1, 7)]
+    atoms.info[GraphAttr.SMILES] = "F[P-](F)(F)(F)(F)F"
     atoms.set_initial_charges([-1] + [0] * 6)
 
     return atoms
@@ -140,8 +142,8 @@ def smiles2conformers(
             positions=conf.GetPositions(),
             numbers=[atom.GetAtomicNum() for atom in mol.GetAtoms()],
         )
-        atoms.info["smiles"] = smiles
-        atoms.info["connectivity"] = bonds
+        atoms.info[GraphAttr.SMILES] = smiles
+        atoms.info[GraphAttr.CONNECTIVITY] = bonds
         if charges is not None:
             atoms.set_initial_charges(charges)
         images.append(atoms)
