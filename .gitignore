@@ -160,3 +160,6 @@ cython_debug/
 #.idea/
 tmp/
 .DS_Store
+
+# Git worktrees
+.worktrees/
