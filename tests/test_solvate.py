@@ -109,6 +109,18 @@ def test_pack_charges():
     assert charges == [0, 0, 0, -1, 0, 1] + [1, 0, 0, -1, 0, 0, 0, 0, 0, 0]
 
 
+def test_pack_tags():
+    water = smiles2conformers("O", 1)
+    methane = smiles2conformers("C", 1)
+    water[0].set_tags(range(1, 4))  # O, H, H -> 1, 2, 3
+    methane[0].set_tags(range(4, 9))  # C, H, H, H, H -> 4, 5, 6, 7, 8
+
+    atoms = pack([water, methane], [2, 1], density=1000)
+    npt.assert_array_equal(
+        atoms.get_tags(), [1, 2, 3, 1, 2, 3, 4, 5, 6, 7, 8]
+    )
+
+
 def test_pack_ratio():
     water = smiles2conformers("O", 1)
     # pack a cubic box
