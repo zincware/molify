@@ -116,9 +116,7 @@ def test_pack_tags():
     methane[0].set_tags(range(4, 9))  # C, H, H, H, H -> 4, 5, 6, 7, 8
 
     atoms = pack([water, methane], [2, 1], density=1000)
-    npt.assert_array_equal(
-        atoms.get_tags(), [1, 2, 3, 1, 2, 3, 4, 5, 6, 7, 8]
-    )
+    npt.assert_array_equal(atoms.get_tags(), [1, 2, 3, 1, 2, 3, 4, 5, 6, 7, 8])
 
 
 def test_pack_ratio():
