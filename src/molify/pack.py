@@ -137,6 +137,9 @@ def _extract_atom_arrays(
     charges = np.concatenate([atom.get_initial_charges() for atom in selected_images])
     if any(charge != 0 for charge in charges):
         packed_atoms.set_initial_charges(charges)
+    tags = np.concatenate([atom.get_tags() for atom in selected_images])
+    if any(tag != 0 for tag in tags):
+        packed_atoms.set_tags(tags)
     return packed_atoms
 
 
