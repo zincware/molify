@@ -18,7 +18,7 @@ def compress(
     atoms : ase.Atoms
         The Atoms object to compress.
     density : float
-        The target density in g/cm^3.
+        The target density in kg/m^3.
     freeze_molecules : bool
         If True, freeze the internal degrees of freedom of the molecules
         during compression, to prevent bond compression.
