@@ -37,6 +37,15 @@ print(atoms)
 >>> Atoms(symbols='OH2', pbc=False)
 ```
 
+## Command Line Interface
+
+Commands mirror the molify functions and write to standard output. `--format`
+takes any ASE format name or extension, defaulting to extxyz.
+
+```bash
+molify smiles2atoms CCO > etoh.xyz
+```
+
 ## Packmol Interface
 
 Given the molecular units, you can build periodic boxes with a given density
