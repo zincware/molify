@@ -100,6 +100,20 @@ The networkx.Graph representation can be obtained from either RDKit or ASE objec
    nh3_graph = molify.ase2networkx(nh3_atoms)
 
 
+**Command Line Interface**
+
+Installing molify provides the ``molify`` command, where every subcommand mirrors
+the molify function of the same name. Structures go to standard output as extxyz,
+which carries the cell alongside the SMILES string and the connectivity.
+
+.. code-block:: console
+
+   $ molify smiles2atoms CCO --format XYZ > etoh.xyz
+   $ molify smiles2atoms CCO --output etoh.pdb
+
+The ``--format`` option takes any ASE format name or file extension, and
+``--output`` takes the format from the file suffix.
+
 Advanced Features
 -----------------
 

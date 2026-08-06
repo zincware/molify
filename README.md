@@ -37,6 +37,20 @@ print(atoms)
 >>> Atoms(symbols='OH2', pbc=False)
 ```
 
+## Command Line Interface
+
+Every command mirrors the molify function of the same name. Structures go to
+standard output as [extxyz](https://github.com/libAtoms/extxyz), which carries
+the cell alongside the SMILES string and the connectivity.
+
+```bash
+molify smiles2atoms CCO --format XYZ > etoh.xyz
+molify smiles2atoms CCO --output etoh.pdb
+```
+
+The `--format` option takes any ASE format name or file extension, and
+`--output` takes the format from the file suffix.
+
 ## Packmol Interface
 
 Given the molecular units, you can build periodic boxes with a given density
