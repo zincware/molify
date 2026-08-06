@@ -64,12 +64,6 @@ def test_smiles2atoms_seed_changes_positions():
     assert not (positions[0] == positions[1]).all()
 
 
-def test_smiles2atoms_invalid_smiles():
-    result = runner.invoke(app, ["smiles2atoms", "C(C"])
-    assert result.exit_code == 2
-    assert "C(C" in result.output
-
-
 @pytest.mark.parametrize("fmt", ["zzz", "cif"])
 def test_smiles2atoms_ase_rejects_format(fmt):
     result = runner.invoke(app, ["smiles2atoms", "CCO", "-f", fmt])

@@ -7,7 +7,6 @@ from typing import Annotated
 import ase.io
 import typer
 from ase.io.formats import extension2format
-from rdkit import Chem
 
 from molify import __version__
 from molify import smiles2atoms as _smiles2atoms
@@ -41,29 +40,6 @@ def _resolve_format(value: str) -> str:
     return fmt.name if fmt is not None else key
 
 
-def _validate_smiles(value: str) -> str:
-    """Confirm that RDKit parses the given SMILES string.
-
-    Parameters
-    ----------
-    value : str
-        The SMILES string to validate.
-
-    Returns
-    -------
-    str
-        The validated SMILES string.
-
-    Raises
-    ------
-    typer.BadParameter
-        If RDKit rejects the SMILES string.
-    """
-    if Chem.MolFromSmiles(value) is None:
-        raise typer.BadParameter(f"RDKit reads valid SMILES, and rejected {value!r}")
-    return value
-
-
 def _version(value: bool) -> None:
     """Print the molify version and exit."""
     if value:
@@ -93,11 +69,7 @@ def main(
 @app.command()
 def smiles2atoms(
     smiles: Annotated[
-        str,
-        typer.Argument(
-            callback=_validate_smiles,
-            help="SMILES string of the molecule, such as 'CCO'.",
-        ),
+        str, typer.Argument(help="SMILES string of the molecule, such as 'CCO'.")
     ],
     fmt: Annotated[
         str,
