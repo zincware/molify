@@ -1,3 +1,5 @@
+import io
+
 import ase.io
 import pytest
 from typer.testing import CliRunner
@@ -6,6 +8,11 @@ from molify import __version__
 from molify.cli import app
 
 runner = CliRunner()
+
+
+def read_output(result) -> ase.Atoms:
+    """Read the structure the CLI wrote to standard output."""
+    return ase.io.read(io.StringIO(result.output), format="extxyz")
 
 
 def test_version():
@@ -20,59 +27,40 @@ def test_no_args_shows_help():
 
 
 @pytest.mark.parametrize("fmt", ["XYZ", "xyz", "extxyz"])
-def test_smiles2atoms_stdout(fmt):
+def test_smiles2atoms_format_aliases(fmt):
     result = runner.invoke(app, ["smiles2atoms", "CCO", "--format", fmt])
     assert result.exit_code == 0
+
     lines = result.output.strip().split("\n")
     assert lines[0] == "9"
     assert "smiles=CCO" in lines[1]
     assert "connectivity=" in lines[1]
 
 
-def test_smiles2atoms_stdout_defaults_to_extxyz():
+def test_smiles2atoms_defaults_to_extxyz():
     result = runner.invoke(app, ["smiles2atoms", "CCO"])
     assert result.exit_code == 0
-    assert "smiles=CCO" in result.output
 
-
-def test_smiles2atoms_output_file(tmp_path):
-    path = tmp_path / "etoh.xyz"
-    result = runner.invoke(app, ["smiles2atoms", "CCO", "--output", str(path)])
-    assert result.exit_code == 0
-
-    atoms = ase.io.read(path)
+    atoms = read_output(result)
     assert atoms.get_chemical_formula() == "C2H6O"
     assert atoms.info["smiles"] == "CCO"
     assert len(atoms.info["connectivity"]) == 8
 
 
-def test_smiles2atoms_format_from_suffix(tmp_path):
-    path = tmp_path / "etoh.pdb"
-    result = runner.invoke(app, ["smiles2atoms", "CCO", "-o", str(path)])
+def test_smiles2atoms_pdb():
+    result = runner.invoke(app, ["smiles2atoms", "CCO", "-f", "pdb"])
     assert result.exit_code == 0
-    assert path.read_text().startswith("MODEL")
-    assert ase.io.read(path).get_chemical_formula() == "C2H6O"
+    assert result.output.startswith("MODEL")
+    assert ase.io.read(io.StringIO(result.output), format="proteindatabank")
 
 
-def test_smiles2atoms_format_overrides_suffix(tmp_path):
-    path = tmp_path / "etoh.xyz"
-    result = runner.invoke(
-        app, ["smiles2atoms", "CCO", "-o", str(path), "-f", "proteindatabank"]
-    )
-    assert result.exit_code == 0
-    assert path.read_text().startswith("MODEL")
-
-
-def test_smiles2atoms_seed_changes_positions(tmp_path):
-    positions = []
-    for seed in (42, 1234):
-        path = tmp_path / f"conf_{seed}.xyz"
-        result = runner.invoke(
-            app, ["smiles2atoms", "CCO", "-o", str(path), "--seed", str(seed)]
-        )
-        assert result.exit_code == 0
-        positions.append(ase.io.read(path).get_positions())
-
+def test_smiles2atoms_seed_changes_positions():
+    positions = [
+        read_output(
+            runner.invoke(app, ["smiles2atoms", "CCO", "--seed", str(seed)])
+        ).get_positions()
+        for seed in (42, 1234)
+    ]
     assert not (positions[0] == positions[1]).all()
 
 
@@ -82,8 +70,7 @@ def test_smiles2atoms_invalid_smiles():
     assert "C(C" in result.output
 
 
-def test_smiles2atoms_unknown_format(tmp_path):
-    result = runner.invoke(
-        app, ["smiles2atoms", "CCO", "-o", str(tmp_path / "etoh.zzz")]
-    )
+@pytest.mark.parametrize("fmt", ["zzz", "cif"])
+def test_smiles2atoms_ase_rejects_format(fmt):
+    result = runner.invoke(app, ["smiles2atoms", "CCO", "-f", fmt])
     assert result.exit_code != 0

@@ -39,17 +39,18 @@ print(atoms)
 
 ## Command Line Interface
 
-Every command mirrors the molify function of the same name. Structures go to
-standard output as [extxyz](https://github.com/libAtoms/extxyz), which carries
-the cell alongside the SMILES string and the connectivity.
+Every command mirrors the molify function of the same name and writes the
+structure to standard output, ready to redirect or pipe. The default
+[extxyz](https://github.com/libAtoms/extxyz) format carries the cell alongside
+the SMILES string and the connectivity.
 
 ```bash
-molify smiles2atoms CCO --format XYZ > etoh.xyz
-molify smiles2atoms CCO --output etoh.pdb
+molify smiles2atoms CCO > etoh.xyz
+molify smiles2atoms CCO --format PDB | grep ATOM
 ```
 
-The `--format` option takes any ASE format name or file extension, and
-`--output` takes the format from the file suffix.
+The `--format` option takes any ASE format name or file extension, so `XYZ`
+selects the extxyz writer.
 
 ## Packmol Interface
 

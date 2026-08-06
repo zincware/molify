@@ -103,16 +103,17 @@ The networkx.Graph representation can be obtained from either RDKit or ASE objec
 **Command Line Interface**
 
 Installing molify provides the ``molify`` command, where every subcommand mirrors
-the molify function of the same name. Structures go to standard output as extxyz,
-which carries the cell alongside the SMILES string and the connectivity.
+the molify function of the same name and writes the structure to standard output,
+ready to redirect or pipe. The default extxyz format carries the cell alongside
+the SMILES string and the connectivity.
 
 .. code-block:: console
 
-   $ molify smiles2atoms CCO --format XYZ > etoh.xyz
-   $ molify smiles2atoms CCO --output etoh.pdb
+   $ molify smiles2atoms CCO > etoh.xyz
+   $ molify smiles2atoms CCO --format PDB | grep ATOM
 
-The ``--format`` option takes any ASE format name or file extension, and
-``--output`` takes the format from the file suffix.
+The ``--format`` option takes any ASE format name or file extension, so ``XYZ``
+selects the extxyz writer.
 
 Advanced Features
 -----------------

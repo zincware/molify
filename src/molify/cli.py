@@ -1,9 +1,9 @@
 """Command line interface for molify."""
 
-import pathlib
-from typing import Annotated, Optional
+import io
+import sys
+from typing import Annotated
 
-import ase
 import ase.io
 import typer
 from ase.io.formats import extension2format
@@ -11,8 +11,6 @@ from rdkit import Chem
 
 from molify import __version__
 from molify import smiles2atoms as _smiles2atoms
-
-STDOUT_FORMAT = "extxyz"
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -41,31 +39,6 @@ def _resolve_format(value: str) -> str:
     key = value.strip().lower()
     fmt = extension2format.get(key)
     return fmt.name if fmt is not None else key
-
-
-def _write(
-    images: ase.Atoms | list[ase.Atoms],
-    fmt: Optional[str],
-    output: Optional[pathlib.Path],
-) -> None:
-    """Write structures to a file, or to standard output.
-
-    Parameters
-    ----------
-    images : ase.Atoms or list of ase.Atoms
-        The structures to write.
-    fmt : str or None
-        An ASE format name. ``None`` takes the format from the ``output``
-        suffix, and ``extxyz`` on standard output.
-    output : pathlib.Path or None
-        Target file. ``None`` writes to standard output.
-    """
-    if output is None:
-        ase.io.write("-", images, format=fmt or STDOUT_FORMAT)
-    elif fmt is None:
-        ase.io.write(output, images)
-    else:
-        ase.io.write(output, images, format=fmt)
 
 
 def _validate_smiles(value: str) -> str:
@@ -112,7 +85,8 @@ def main(
 ) -> None:
     """Build molecular structures from the command line.
 
-    Each command mirrors the molify function of the same name.
+    Each command mirrors the molify function of the same name and writes the
+    structure to standard output.
     """
 
 
@@ -126,33 +100,26 @@ def smiles2atoms(
         ),
     ],
     fmt: Annotated[
-        Optional[str],
+        str,
         typer.Option(
             "--format",
             "-f",
             help=(
                 "Output format, given as an ASE format name or file extension."
                 " 'XYZ' selects extxyz, which keeps the SMILES string and the"
-                " connectivity. Taken from the --output suffix when omitted,"
-                " and 'extxyz' on standard output."
+                " connectivity."
             ),
         ),
-    ] = None,
-    output: Annotated[
-        Optional[pathlib.Path],
-        typer.Option(
-            "--output",
-            "-o",
-            help="Write to this file. Standard output when omitted.",
-        ),
-    ] = None,
+    ] = "extxyz",
     seed: Annotated[
         int, typer.Option(help="Random seed for conformer generation.")
     ] = 42,
 ) -> None:
-    """Convert a SMILES string into a single 3D structure.
+    """Convert a SMILES string into a single 3D structure on standard output.
 
     Example: molify smiles2atoms CCO --format XYZ > etoh.xyz
     """
     atoms = _smiles2atoms(smiles, seed=seed)
-    _write(atoms, _resolve_format(fmt) if fmt else None, output)
+    with io.StringIO() as handle:
+        ase.io.write(handle, atoms, format=_resolve_format(fmt))
+        sys.stdout.write(handle.getvalue())
