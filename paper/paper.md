@@ -110,10 +110,7 @@ For example, `molify` streamlines the extraction of the CH$_3$ alkyl group from 
 ```python
 from molify import get_substructures
 
-frames: list[ase.Atoms] = get_substructures(
-  atoms=box,
-  smiles="[C]([H])([H])[H]"
-)
+frames: list[ase.Atoms] = get_substructures(atoms=box, smiles="[C]([H])([H])[H]")
 ```
 
 # Related software
