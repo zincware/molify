@@ -135,8 +135,8 @@ def ase2networkx(
     Raises
     ------
     ValueError
-        For a bond in ``atoms.info['connectivity']`` with an atom index outside
-        ``0..len(atoms) - 1`` or one that links an atom to itself.
+        For a bond in ``atoms.info['connectivity']`` other than ``(i, j, order)``
+        with distinct integer atom indices in ``0..len(atoms) - 1``.
 
     Notes
     -----

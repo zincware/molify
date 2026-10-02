@@ -1,5 +1,4 @@
 import io
-from collections import defaultdict
 from typing import Literal, Optional, cast
 
 import ase.io
@@ -29,18 +28,29 @@ def read_connectivity(atoms: ase.Atoms) -> list[tuple[int, int, float | None]]:
     Returns
     -------
     list[tuple[int, int, float | None]]
-        One ``(i, j, order)`` tuple per bond with ``int`` atom indices and a
-        ``float`` or ``None`` bond order.
+        One tuple per bond, in input order.
 
     Raises
     ------
     ValueError
-        For a bond with an atom index outside ``0..len(atoms) - 1`` or a bond
-        that links an atom to itself.
+        For a bond without exactly three entries, a non-integer atom index, an
+        atom index outside ``0..len(atoms) - 1`` or a bond that links an atom
+        to itself.
     """
     n_atoms = len(atoms)
     bonds = []
-    for i, j, order in atoms.info[GraphAttr.CONNECTIVITY]:
+    for bond in atoms.info[GraphAttr.CONNECTIVITY]:
+        if len(bond) != 3:
+            raise ValueError(
+                f"bond {bond!r} in atoms.info['connectivity'] needs three entries "
+                "(i, j, order)"
+            )
+        i, j, order = bond
+        if i != int(i) or j != int(j):
+            raise ValueError(
+                f"bond ({i}, {j}) in atoms.info['connectivity'] needs integer atom "
+                "indices"
+            )
         i, j = int(i), int(j)
         if not (0 <= i < n_atoms and 0 <= j < n_atoms):
             raise ValueError(
@@ -69,37 +79,29 @@ def bond_type_from_order(order):
         raise ValueError(f"Unsupported bond order: {order}")
 
 
-def find_connected_components(connectivity: list[tuple[int, int, float]]):
-    try:
-        import networkx as nx
+def fragment_indices(atoms: ase.Atoms) -> list[list[int]]:
+    """Group atom indices into the molecules bonded by ``info['connectivity']``.
 
-        graph = nx.Graph()
-        for i, j, _ in connectivity:
-            graph.add_edge(i, j)
-        for component in nx.connected_components(graph):
-            yield component
-    except ImportError:
-        adjacency = defaultdict(list)
-        for i, j, _ in connectivity:
-            adjacency[i].append(j)
-            adjacency[j].append(i)
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Structure with ``info['connectivity']``.
 
-        visited = set()
-        for start in adjacency:
-            if start in visited:
-                continue
+    Returns
+    -------
+    list[list[int]]
+        Sorted atom indices per molecule, ordered by first atom. An unbonded
+        atom is a molecule of its own.
 
-            component = []
-            stack = [start]
-            while stack:
-                node = stack.pop()
-                if node in visited:
-                    continue
-                visited.add(node)
-                component.append(node)
-                stack.extend(n for n in adjacency[node] if n not in visited)
-
-            yield component
+    Raises
+    ------
+    ValueError
+        For an invalid bond, see :func:`read_connectivity`.
+    """
+    graph = nx.Graph()
+    graph.add_nodes_from(range(len(atoms)))
+    graph.add_edges_from((i, j) for i, j, _ in read_connectivity(atoms))
+    return [sorted(component) for component in nx.connected_components(graph)]
 
 
 def calculate_density(atoms: ase.Atoms) -> float:

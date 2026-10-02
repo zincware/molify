@@ -90,12 +90,30 @@ def _write_molecule_files(
             ase.io.write(filepath, atoms)
 
 
+def _combine_bonds(
+    selected_images: list[ase.Atoms],
+) -> list[tuple[int, int, float | None]] | None:
+    """Offset each molecule's bonds into the packed box.
+
+    Returns None when a molecule lacks ``info['connectivity']``.
+    """
+    if not all(GraphAttr.CONNECTIVITY in atoms.info for atoms in selected_images):
+        return None
+    bonds = []
+    offset = 0
+    for atoms in selected_images:
+        for i, j, order in read_connectivity(atoms):
+            bonds.append((i + offset, j + offset, order))
+        offset += len(atoms)
+    return bonds
+
+
 def _extract_atom_arrays(
-    selected_images: list[ase.Atoms], packed_atoms: ase.Atoms
+    selected_images: list[ase.Atoms],
+    packed_atoms: ase.Atoms,
+    bonds: list[tuple[int, int, float | None]] | None,
 ) -> ase.Atoms:
     """Extracts and adds relevant atom arrays (if present)
-
-    Add bonds from the input structures to the packed structure if available.
 
     Parameters
     ----------
@@ -103,6 +121,8 @@ def _extract_atom_arrays(
         List of input ASE Atoms objects.
     packed_atoms : ase.Atoms
         The ASE Atoms object representing the packed system.
+    bonds : list[tuple[int, int, float | None]] | None
+        Bonds of the packed system from :func:`_combine_bonds`.
 
     Returns
     -------
@@ -126,13 +146,7 @@ def _extract_atom_arrays(
             )
             packed_atoms.arrays[key] = concatenated_array
 
-    if all(GraphAttr.CONNECTIVITY in atoms.info for atoms in selected_images):
-        bonds = []
-        offset = 0
-        for atoms in selected_images:
-            for i, j, order in read_connectivity(atoms):
-                bonds.append((i + offset, j + offset, order))
-            offset += len(atoms)
+    if bonds is not None:
         packed_atoms.info[GraphAttr.CONNECTIVITY] = bonds
     charges = np.concatenate([atom.get_initial_charges() for atom in selected_images])
     if any(charge != 0 for charge in charges):
@@ -192,8 +206,8 @@ def pack(
     Raises
     ------
     ValueError
-        For a bond in a molecule's ``info['connectivity']`` with an atom index
-        outside that molecule or one that links an atom to itself.
+        For a bond in a molecule's ``info['connectivity']`` other than
+        ``(i, j, order)`` with distinct integer atom indices of that molecule.
 
     Example
     -------
@@ -206,6 +220,7 @@ def pack(
     Atoms(symbols='C10H44O12', pbc=True, cell=[8.4, 8.4, 8.4])
     """
     selected_images = _select_conformers(data, counts, seed)
+    bonds = _combine_bonds(selected_images)
     cell = calculate_box_dimensions(images=selected_images, density=density)
 
     # Adjust cell dimensions according to ratio while keeping volume unchanged
@@ -245,5 +260,5 @@ def pack(
 
     packed_atoms.cell = cell
     packed_atoms.pbc = True
-    packed_atoms = _extract_atom_arrays(selected_images, packed_atoms)
+    packed_atoms = _extract_atom_arrays(selected_images, packed_atoms, bonds)
     return packed_atoms

@@ -8,7 +8,7 @@ from rdkit.Chem import Draw
 
 from molify.ase2x import ase2rdkit
 from molify.constants import GraphAttr
-from molify.utils import find_connected_components
+from molify.utils import fragment_indices
 
 
 def match_substructure(  # noqa: C901
@@ -289,6 +289,11 @@ def iter_fragments(atoms: ase.Atoms) -> list[ase.Atoms]:
     ase.Atoms
         Each connected component (fragment) in the input structure.
 
+    Raises
+    ------
+    ValueError
+        For an invalid bond in ``atoms.info['connectivity']``.
+
     Examples
     --------
     >>> from molify import smiles2atoms
@@ -305,10 +310,8 @@ def iter_fragments(atoms: ase.Atoms) -> list[ase.Atoms]:
     2
     """
     if GraphAttr.CONNECTIVITY in atoms.info:
-        # connectivity is a list of tuples (i, j, bond_type)
-        connectivity = atoms.info[GraphAttr.CONNECTIVITY]
-        for component in find_connected_components(connectivity):
-            yield atoms[list(component)]
+        for indices in fragment_indices(atoms):
+            yield atoms[indices]
     else:
         for molecule in separate(atoms):
             yield molecule

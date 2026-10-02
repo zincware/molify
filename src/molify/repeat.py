@@ -28,9 +28,8 @@ def _tile_bonds(
 ) -> list[tuple[int, int, float | None]]:
     n_atoms = len(atoms)
     bonds = read_connectivity(atoms)
-    i = np.array([bond[0] for bond in bonds], dtype=int)
-    j = np.array([bond[1] for bond in bonds], dtype=int)
-    orders = [bond[2] for bond in bonds]
+    i, j = np.array([(a, b) for a, b, _ in bonds], dtype=int).reshape(-1, 2).T
+    orders = [order for *_, order in bonds]
 
     periodic = atoms.pbc & atoms.cell.any(1)
     d = atoms.positions[j] - atoms.positions[i]
