@@ -2,17 +2,19 @@ from collections.abc import Sequence
 
 import ase
 import numpy as np
-from ase.geometry import find_mic
+from ase.geometry import find_mic, minkowski_reduce
 
 from molify.constants import GraphAttr, NodeAttr
 
 
 def _normalize_rep(rep: int | Sequence[int]) -> tuple[int, ...]:
     try:
-        reps = np.broadcast_to(rep, 3)
+        reps = np.asarray(rep)
     except ValueError:
-        reps = None
-    if reps is None or reps.dtype.kind not in "iu" or (reps < 1).any():
+        reps = np.empty(0)
+    if reps.ndim == 0:
+        reps = np.broadcast_to(reps, 3)
+    if reps.shape != (3,) or reps.dtype.kind not in "iu" or (reps < 1).any():
         raise ValueError(
             "rep must be a positive integer or a sequence of three positive integers, "
             f"got {rep!r}"
@@ -43,19 +45,19 @@ def _tile_bonds(
     i = np.array(first, dtype=int)
     j = np.array(second, dtype=int)
 
+    periodic = atoms.pbc & atoms.cell.any(1)
     d = atoms.positions[j] - atoms.positions[i]
-    d_mic, lengths = find_mic(d, atoms.cell, atoms.pbc)
-    cell = atoms.cell.complete()
-    heights = cell.volume / cell.areas()
-    limit = 0.5 * heights[atoms.pbc].min(initial=np.inf)
+    d_mic, lengths = find_mic(d, atoms.cell, periodic)
+    lattice, _ = minkowski_reduce(atoms.cell, periodic)
+    limit = 0.5 * np.linalg.norm(lattice[periodic], axis=1).min(initial=np.inf)
     too_long = np.flatnonzero(lengths >= limit)
     if too_long.size:
         k = too_long[0]
         raise ValueError(
             f"bond ({i[k]}, {j[k]}) in atoms.info['connectivity'] is "
             f"{lengths[k]:.3f} Å long; repeat needs every bond shorter than "
-            f"{limit:.3f} Å, half the smallest periodic cell height, so that each "
-            "bond links a unique periodic image"
+            f"{limit:.3f} Å, half the shortest periodic lattice vector, so that "
+            "each bond links a unique periodic image"
         )
     shift = np.rint(atoms.cell.scaled_positions(d_mic - d)).astype(int)
 
@@ -82,8 +84,8 @@ def repeat(atoms: ase.Atoms, rep: int | Sequence[int]) -> ase.Atoms:
     Parameters
     ----------
     atoms : ase.Atoms
-        Periodic structure whose bonds are each shorter than half the smallest
-        cell height along the periodic axes.
+        Periodic structure whose bonds are each shorter than half the shortest
+        vector of its periodic lattice.
     rep : int or Sequence[int]
         Copies along each cell vector: one positive integer for all three, or
         three positive integers.
@@ -117,14 +119,11 @@ def repeat(atoms: ase.Atoms, rep: int | Sequence[int]) -> ase.Atoms:
             f"atoms.info['original_index'] holds {len(original_index)} entries "
             f"for {len(atoms)} atoms; it needs one entry per atom"
         )
-    connectivity = (
-        _tile_bonds(atoms, reps) if GraphAttr.CONNECTIVITY in atoms.info else None
-    )
 
     result = atoms.repeat(reps)
     result.info.pop(GraphAttr.SMILES, None)
-    if connectivity is not None:
-        result.info[GraphAttr.CONNECTIVITY] = connectivity
+    if GraphAttr.CONNECTIVITY in atoms.info:
+        result.info[GraphAttr.CONNECTIVITY] = _tile_bonds(atoms, reps)
     if original_index is not None:
         tiled = [int(k) for k in original_index] * int(np.prod(reps))
         result.info[NodeAttr.ORIGINAL_INDEX] = tiled

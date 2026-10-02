@@ -114,6 +114,19 @@ def test_repeat_triclinic_cell(rep):
     assert edges(molify.ase2networkx(result)) == distance_edges(atoms.repeat(rep))
 
 
+@pytest.mark.parametrize("rep", [2, (2, 1, 1), (1, 2, 1)])
+def test_repeat_sheared_cell(ethanol_water_box, rep):
+    box = ethanol_water_box.copy()
+    length = box.cell.lengths()[0]
+    box.set_cell([[length, 0.0, 0.0], [3 * length, length, 0.0], [0.0, 0.0, length]])
+    box = wrapped(box)
+    assert_valid_fixture(box)
+
+    result = molify.repeat(box, rep)
+
+    assert edges(molify.ase2networkx(result)) == distance_edges(box.repeat(rep))
+
+
 def test_repeat_partial_pbc():
     slab = molecule_at_origin("CCO", cell=[8.0, 8.0, 0.0], pbc=[True, True, False])
     assert_valid_fixture(slab)
@@ -123,6 +136,16 @@ def test_repeat_partial_pbc():
     assert edges(molify.ase2networkx(result)) == distance_edges(slab.repeat((2, 3, 1)))
     with pytest.raises(ValueError, match="undefined lattice vector"):
         molify.repeat(slab, (1, 1, 2))
+
+
+def test_repeat_pbc_along_zero_cell_vector():
+    slab = molecule_at_origin("CCO", cell=[8.0, 8.0, 0.0], pbc=[True, True, False])
+    expected = molify.repeat(slab, (2, 3, 1))
+    slab.pbc = True
+
+    result = molify.repeat(slab, (2, 3, 1))
+
+    assert result.info["connectivity"] == expected.info["connectivity"]
 
 
 def test_repeat_tiles_original_index():
@@ -142,7 +165,24 @@ def test_repeat_without_connectivity(ethanol_water_box):
 
     result = molify.repeat(atoms, (2, 1, 1))
 
+    expected = atoms.repeat((2, 1, 1))
     assert "connectivity" not in result.info
+    np.testing.assert_array_equal(result.positions, expected.positions)
+    np.testing.assert_array_equal(result.numbers, expected.numbers)
+    np.testing.assert_array_equal(result.cell, expected.cell)
+    np.testing.assert_array_equal(result.pbc, expected.pbc)
+
+
+def test_repeat_distance_based_connectivity(ethanol_water_box):
+    stripped = ethanol_water_box.copy()
+    del stripped.info["connectivity"]
+    box = molify.networkx2ase(molify.ase2networkx(stripped))
+    assert {order for *_, order in box.info["connectivity"]} == {None}
+
+    result = molify.repeat(box, (2, 1, 1))
+
+    assert edges(molify.ase2networkx(result)) == distance_edges(box.repeat((2, 1, 1)))
+    assert all(order is None for *_, order in result.info["connectivity"])
 
 
 def test_repeat_empty_connectivity():
@@ -196,6 +236,7 @@ def test_repeat_extxyz_roundtrip():
 
     assert edges(molify.ase2networkx(result)) == distance_edges(loaded.repeat(2))
     assert result.info["original_index"] == list(range(10, 10 + len(atoms))) * 8
+    assert all(type(k) is int for k in result.info["original_index"])
     assert all(
         type(i) is int and type(j) is int and type(order) is float
         for i, j, order in result.info["connectivity"]
@@ -213,7 +254,7 @@ def test_repeat_accepts_numpy_rep(ethanol_water_box, rep, equivalent):
     assert result.info["connectivity"] == expected.info["connectivity"]
 
 
-@pytest.mark.parametrize("rep", [0, -1, (0, 1, 1), (2, 1), (2.0, 1, 1), "2", 2.0])
+@pytest.mark.parametrize("rep", [0, -1, (0, 1, 1), (2,), (2, 1), (2.0, 1, 1), "2", 2.0])
 def test_repeat_invalid_rep(rep):
     atoms = molecule_at_origin("O", cell=[6.0, 6.0, 6.0], pbc=True)
 
@@ -277,7 +318,11 @@ def test_repeat_cell_too_small_for_unique_bond_images():
         ValueError,
         match=re.escape(
             "bond (0, 1) in atoms.info['connectivity'] is 2.351 Å long; repeat needs "
-            "every bond shorter than 1.568 Å, half the smallest periodic cell height"
+            "every bond shorter than 1.920 Å, half the shortest periodic lattice vector"
         ),
     ):
         molify.repeat(silicon, 3)
+
+
+def test_repeat_is_public():
+    assert "repeat" in molify.__all__
