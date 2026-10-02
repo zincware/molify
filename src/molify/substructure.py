@@ -292,22 +292,19 @@ def iter_fragments(atoms: ase.Atoms) -> list[ase.Atoms]:
     Raises
     ------
     ValueError
-        For an invalid bond in ``atoms.info['connectivity']``.
+        For an invalid bond in ``atoms.info['connectivity']``, see
+        :func:`molify.utils.read_connectivity`.
 
     Examples
     --------
-    >>> from molify import smiles2atoms
-    >>> from rdkit.Chem import CombineMols
+    >>> from molify import iter_fragments, pack, smiles2conformers
     >>>
-    >>> # Create multi-fragment system
-    >>> ethanol = smiles2atoms("CCO")
-    >>> methanol = smiles2atoms("CO")
-    >>> combined = ethanol + methanol
+    >>> water = smiles2conformers("O", 1)
+    >>> ethanol = smiles2conformers("CCO", 1)
+    >>> box = pack([water, ethanol], [2, 1], density=800)
     >>>
-    >>> # Iterate over fragments
-    >>> fragments = list(iter_fragments(combined))
-    >>> len(fragments)
-    2
+    >>> [fragment.get_chemical_formula() for fragment in iter_fragments(box)]
+    ['H2O', 'H2O', 'C2H6O']
     """
     if GraphAttr.CONNECTIVITY in atoms.info:
         for indices in fragment_indices(atoms):

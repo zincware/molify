@@ -135,8 +135,8 @@ def ase2networkx(
     Raises
     ------
     ValueError
-        For a bond in ``atoms.info['connectivity']`` other than ``(i, j, order)``
-        with distinct integer atom indices in ``0..len(atoms) - 1``.
+        For an invalid bond in ``atoms.info['connectivity']``, see
+        :func:`molify.utils.read_connectivity`.
 
     Notes
     -----

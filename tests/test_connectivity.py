@@ -1,3 +1,4 @@
+import math
 import re
 
 import numpy as np
@@ -108,10 +109,40 @@ CONNECTIVITY_READERS = {
             id="non-integer",
         ),
         pytest.param(
+            (0, math.inf, 1.0),
+            "bond (0, inf) in atoms.info['connectivity'] needs integer atom indices",
+            id="infinite",
+        ),
+        pytest.param(
+            (0, math.nan, 1.0),
+            "bond (0, nan) in atoms.info['connectivity'] needs integer atom indices",
+            id="nan",
+        ),
+        pytest.param(
+            (0, None, 1.0),
+            "bond (0, None) in atoms.info['connectivity'] needs integer atom indices",
+            id="none",
+        ),
+        pytest.param(
+            (0, True, 1.0),
+            "bond (0, True) in atoms.info['connectivity'] needs integer atom indices",
+            id="bool",
+        ),
+        pytest.param(
+            (0, "1", 1.0),
+            "bond (0, '1') in atoms.info['connectivity'] needs integer atom indices",
+            id="string",
+        ),
+        pytest.param(
             (0, 1),
             "bond (0, 1) in atoms.info['connectivity'] needs three entries "
             "(i, j, order)",
             id="two-entries",
+        ),
+        pytest.param(
+            1.0,
+            "bond 1.0 in atoms.info['connectivity'] needs three entries (i, j, order)",
+            id="scalar",
         ),
     ],
 )

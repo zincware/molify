@@ -109,9 +109,7 @@ def _combine_bonds(
 
 
 def _extract_atom_arrays(
-    selected_images: list[ase.Atoms],
-    packed_atoms: ase.Atoms,
-    bonds: list[tuple[int, int, float | None]] | None,
+    selected_images: list[ase.Atoms], packed_atoms: ase.Atoms
 ) -> ase.Atoms:
     """Extracts and adds relevant atom arrays (if present)
 
@@ -121,13 +119,11 @@ def _extract_atom_arrays(
         List of input ASE Atoms objects.
     packed_atoms : ase.Atoms
         The ASE Atoms object representing the packed system.
-    bonds : list[tuple[int, int, float | None]] | None
-        Bonds of the packed system from :func:`_combine_bonds`.
 
     Returns
     -------
     ase.Atoms
-        The packed ASE Atoms object with the copied arrays and bonds.
+        The packed ASE Atoms object with the copied arrays.
     """
     array_keys = [
         "occupancy",
@@ -146,8 +142,6 @@ def _extract_atom_arrays(
             )
             packed_atoms.arrays[key] = concatenated_array
 
-    if bonds is not None:
-        packed_atoms.info[GraphAttr.CONNECTIVITY] = bonds
     charges = np.concatenate([atom.get_initial_charges() for atom in selected_images])
     if any(charge != 0 for charge in charges):
         packed_atoms.set_initial_charges(charges)
@@ -206,8 +200,8 @@ def pack(
     Raises
     ------
     ValueError
-        For a bond in a molecule's ``info['connectivity']`` other than
-        ``(i, j, order)`` with distinct integer atom indices of that molecule.
+        For an invalid bond in a molecule's ``info['connectivity']``, see
+        :func:`molify.utils.read_connectivity`.
 
     Example
     -------
@@ -260,5 +254,7 @@ def pack(
 
     packed_atoms.cell = cell
     packed_atoms.pbc = True
-    packed_atoms = _extract_atom_arrays(selected_images, packed_atoms, bonds)
+    packed_atoms = _extract_atom_arrays(selected_images, packed_atoms)
+    if bonds is not None:
+        packed_atoms.info[GraphAttr.CONNECTIVITY] = bonds
     return packed_atoms

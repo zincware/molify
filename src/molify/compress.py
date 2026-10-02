@@ -13,8 +13,8 @@ def compress(
 ) -> ase.Atoms:
     """Compress an ASE Atoms object to a target density.
 
-    Arguments
-    ---------
+    Parameters
+    ----------
     atoms : ase.Atoms
         The Atoms object to compress.
     density : float
@@ -26,8 +26,8 @@ def compress(
     Raises
     ------
     ValueError
-        With ``freeze_molecules=True``, for a missing or invalid
-        ``info['connectivity']``.
+        With ``freeze_molecules=True``, for a missing ``info['connectivity']``
+        or an invalid bond in it, see :func:`molify.utils.read_connectivity`.
     """
     atoms = atoms.copy()
     new_dimensions = np.array(calculate_box_dimensions([atoms], density))

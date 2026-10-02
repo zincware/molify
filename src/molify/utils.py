@@ -1,4 +1,6 @@
 import io
+import numbers
+from collections.abc import Sized
 from typing import Literal, Optional, cast
 
 import ase.io
@@ -14,6 +16,14 @@ from matplotlib.figure import Figure
 from rdkit import Chem
 
 from molify.constants import GraphAttr
+
+
+def _is_atom_index(value) -> bool:
+    return (
+        isinstance(value, numbers.Real)
+        and not isinstance(value, bool)
+        and float(value).is_integer()
+    )
 
 
 def read_connectivity(atoms: ase.Atoms) -> list[tuple[int, int, float | None]]:
@@ -33,23 +43,22 @@ def read_connectivity(atoms: ase.Atoms) -> list[tuple[int, int, float | None]]:
     Raises
     ------
     ValueError
-        For a bond without exactly three entries, a non-integer atom index, an
-        atom index outside ``0..len(atoms) - 1`` or a bond that links an atom
-        to itself.
+        For an invalid bond. A valid bond has three entries ``(i, j, order)``
+        with two distinct integer atom indices in ``0..len(atoms) - 1``.
     """
     n_atoms = len(atoms)
     bonds = []
     for bond in atoms.info[GraphAttr.CONNECTIVITY]:
-        if len(bond) != 3:
+        if not isinstance(bond, Sized) or len(bond) != 3:
             raise ValueError(
                 f"bond {bond!r} in atoms.info['connectivity'] needs three entries "
                 "(i, j, order)"
             )
         i, j, order = bond
-        if i != int(i) or j != int(j):
+        if not (_is_atom_index(i) and _is_atom_index(j)):
             raise ValueError(
-                f"bond ({i}, {j}) in atoms.info['connectivity'] needs integer atom "
-                "indices"
+                f"bond ({i!r}, {j!r}) in atoms.info['connectivity'] needs integer "
+                "atom indices"
             )
         i, j = int(i), int(j)
         if not (0 <= i < n_atoms and 0 <= j < n_atoms):
@@ -96,12 +105,13 @@ def fragment_indices(atoms: ase.Atoms) -> list[list[int]]:
     Raises
     ------
     ValueError
-        For an invalid bond, see :func:`read_connectivity`.
+        For an invalid bond in ``atoms.info['connectivity']``, see
+        :func:`read_connectivity`.
     """
     graph = nx.Graph()
     graph.add_nodes_from(range(len(atoms)))
     graph.add_edges_from((i, j) for i, j, _ in read_connectivity(atoms))
-    return [sorted(component) for component in nx.connected_components(graph)]
+    return sorted(sorted(component) for component in nx.connected_components(graph))
 
 
 def calculate_density(atoms: ase.Atoms) -> float:
