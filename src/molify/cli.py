@@ -91,7 +91,10 @@ def smiles2atoms(
 
     Example: molify smiles2atoms CCO --format XYZ > etoh.xyz
     """
-    atoms = _smiles2atoms(smiles, seed=seed)
+    try:
+        atoms = _smiles2atoms(smiles, seed=seed)
+    except ValueError as err:
+        raise typer.BadParameter(str(err), param_hint="'SMILES'") from err
     with io.StringIO() as handle:
         ase.io.write(handle, atoms, format=_resolve_format(fmt))
         sys.stdout.write(handle.getvalue())
