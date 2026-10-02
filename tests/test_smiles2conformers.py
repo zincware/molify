@@ -1,10 +1,11 @@
 import itertools
+import re
 
 import numpy as np
 import pytest
 from rdkit import Chem
 
-from molify import ase2rdkit, smiles2conformers
+from molify import ase2rdkit, smiles2atoms, smiles2conformers
 
 
 def test_smiles2conformers():
@@ -69,3 +70,41 @@ def test_connectivity_info(smiles, connectivity, use_numpy):
     mol = Chem.RemoveHs(mol)
     smiles2 = Chem.MolToSmiles(mol)
     assert smiles2 == smiles
+
+
+@pytest.mark.parametrize("smiles", ["C1CC", "xx", "C(C)(C)(C)(C)C"])
+def test_smiles2conformers_rejects_unparseable_smiles(smiles):
+    with pytest.raises(
+        ValueError, match=re.escape(f"rdkit cannot parse SMILES {smiles!r}")
+    ):
+        smiles2conformers(smiles, numConfs=3)
+
+
+def test_smiles2atoms_rejects_unparseable_smiles():
+    with pytest.raises(ValueError, match=re.escape("rdkit cannot parse SMILES 'C1CC'")):
+        smiles2atoms("C1CC")
+
+
+def test_smiles2conformers_rejects_unembeddable_smiles():
+    smiles = "[Fe](C)(C)(C)(C)(C)(C)(C)(C)"
+    with pytest.raises(
+        ValueError, match=re.escape(f"rdkit embedded 0 of 3 conformers of {smiles!r}")
+    ):
+        smiles2conformers(smiles, numConfs=3)
+
+
+def test_smiles2atoms_rejects_unembeddable_smiles():
+    smiles = "[Fe](C)(C)(C)(C)(C)(C)(C)(C)"
+    with pytest.raises(
+        ValueError, match=re.escape(f"rdkit embedded 0 of 1 conformers of {smiles!r}")
+    ):
+        smiles2atoms(smiles)
+
+
+def test_smiles2conformers_rejects_partial_embedding():
+    smiles = "C1CC2CCC1C2"
+    assert len(smiles2conformers(smiles, numConfs=10)) == 10
+    with pytest.raises(
+        ValueError, match=r"^rdkit embedded [1-9] of 10 conformers of 'C1CC2CCC1C2'$"
+    ):
+        smiles2conformers(smiles, numConfs=10, maxAttempts=1)
