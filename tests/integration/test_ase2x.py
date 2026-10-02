@@ -1,6 +1,11 @@
+import tracemalloc
 from unittest.mock import patch
 
 import ase
+import ase.data
+import ase.geometry
+import networkx as nx
+import numpy as np
 import pytest
 from rdkit import Chem
 
@@ -389,3 +394,163 @@ class TestAse2NetworkxOriginalIndex:
 
         for n in graph.nodes:
             assert graph.nodes[n][NodeAttr.ORIGINAL_INDEX] == n
+
+
+_IONS = {"Li", "Na", "K", "Rb", "Cs", "Fr"}
+
+
+def _reference_edges(
+    atoms: ase.Atoms, pbc: bool = True, scale: float = 1.2
+) -> set[tuple[int, int]]:
+    """Bonded pairs from all-pairs minimum-image distances."""
+    _, dist = ase.geometry.get_distances(
+        atoms.positions, cell=atoms.cell, pbc=atoms.pbc if pbc else False
+    )
+    radii = ase.data.covalent_radii[atoms.numbers] * scale
+    symbols = atoms.get_chemical_symbols()
+    return {
+        (a, b)
+        for a in range(len(atoms))
+        for b in range(a + 1, len(atoms))
+        if symbols[a] not in _IONS
+        and symbols[b] not in _IONS
+        and dist[a, b] <= radii[a] + radii[b]
+    }
+
+
+def _edge_set(graph) -> set[tuple[int, int]]:
+    return {tuple(sorted(edge)) for edge in graph.edges}
+
+
+@pytest.fixture(params=["vesin", "ase"])
+def neighbor_backend(request, monkeypatch):
+    if request.param == "vesin":
+        pytest.importorskip("vesin")
+    else:
+        monkeypatch.setattr("molify.ase2x.vesin", None)
+
+
+@pytest.fixture(
+    params=[
+        "packed",
+        "unwrapped",
+        "wrapped",
+        "mixed_pbc",
+        "triclinic",
+        "ions",
+        "molecule",
+    ]
+)
+def reference_system(request) -> ase.Atoms:
+    """``wrapped``, ``mixed_pbc`` and ``triclinic`` split molecules across the
+    cell boundaries; ``unwrapped`` places atoms outside the cell."""
+    if request.param == "ions":
+        atoms = request.getfixturevalue("ec_emc_li_pf6")
+    elif request.param == "molecule":
+        atoms = molify.smiles2atoms("C1=CC=CC=C1O")
+    else:
+        atoms = request.getfixturevalue("ethanol_water").copy()
+    atoms.info.pop("connectivity")
+
+    if request.param in {"unwrapped", "wrapped", "mixed_pbc", "triclinic"}:
+        atoms.positions += [3.3, -7.1, 12.4]
+    if request.param in {"wrapped", "mixed_pbc", "triclinic"}:
+        atoms.wrap()
+    if request.param == "mixed_pbc":
+        atoms.pbc = [True, False, True]
+    elif request.param == "triclinic":
+        cell = atoms.cell.array.copy()
+        cell[1, 0] = 0.4 * cell[0, 0]
+        atoms.set_cell(cell, scale_atoms=True)
+    return atoms
+
+
+@pytest.mark.usefixtures("neighbor_backend")
+@pytest.mark.parametrize("pbc", [True, False])
+def test_ase2networkx_matches_reference(reference_system, pbc):
+    graph = molify.ase2networkx(reference_system, pbc=pbc)
+
+    expected = _reference_edges(reference_system, pbc=pbc)
+    assert expected
+    assert _edge_set(graph) == expected
+
+
+@pytest.mark.usefixtures("neighbor_backend")
+def test_ase2networkx_bonds_through_any_periodic_image():
+    atoms = ase.Atoms(
+        "CH", positions=[[0, 5, 5], [0.7, 5, 5]], cell=[2.0, 10, 10], pbc=True
+    )
+
+    graph = molify.ase2networkx(atoms)
+
+    assert graph.has_edge(0, 1)
+    assert _edge_set(graph) == _reference_edges(atoms)
+
+
+def test_ase2networkx_memory_is_linear(ethanol_water):
+    atoms = ethanol_water.repeat((7, 7, 7))
+    atoms.info.pop("connectivity")
+
+    tracemalloc.start()
+    try:
+        graph = molify.ase2networkx(atoms)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+
+    assert graph.number_of_nodes() == 8232
+    assert peak < 100 * 1024**2
+
+
+@pytest.mark.usefixtures("neighbor_backend")
+def test_ase2networkx_skips_periodic_self_images():
+    atoms = ase.Atoms("C", positions=[[0, 0, 0]], cell=[1.5, 1.5, 1.5], pbc=True)
+
+    graph = molify.ase2networkx(atoms)
+
+    assert list(graph.nodes) == [0]
+    assert graph.number_of_edges() == 0
+    assert nx.number_of_selfloops(graph) == 0
+
+
+def test_ase2networkx_only_non_bonding_ions():
+    atoms = ase.Atoms("LiNaK", positions=[[0, 0, 0], [1, 0, 0], [2, 0, 0]])
+
+    graph = molify.ase2networkx(atoms)
+
+    assert list(graph.nodes) == [0, 1, 2]
+    assert graph.number_of_edges() == 0
+    assert [graph.nodes[n]["charge"] for n in graph.nodes] == [1.0, 1.0, 1.0]
+
+
+@pytest.mark.usefixtures("neighbor_backend")
+def test_ase2networkx_graph_contract(ec_emc_li_pf6):
+    atoms = ec_emc_li_pf6
+    atoms.info.pop("connectivity")
+    charges = atoms.get_initial_charges()
+
+    graph = molify.ase2networkx(atoms)
+
+    assert list(graph.nodes) == list(range(len(atoms)))
+    for n, data in graph.nodes(data=True):
+        assert set(data) == {"position", "atomic_number", "original_index", "charge"}
+        np.testing.assert_array_equal(data["position"], atoms.positions[n])
+        assert data["atomic_number"] == atoms.numbers[n]
+        assert data["original_index"] == n
+        expected_charge = 1.0 if atoms.numbers[n] == 3 else charges[n]
+        assert data["charge"] == expected_charge
+
+    li_nodes = [n for n in graph.nodes if atoms.numbers[n] == 3]
+    assert len(li_nodes) == 3
+    assert all(graph.degree(n) == 0 for n in li_nodes)
+
+    edges = list(graph.edges(data=True))
+    assert edges
+    assert all(type(u) is int and type(v) is int for u, v, _ in edges)
+    assert all(data == {"bond_order": None} for _, _, data in edges)
+    assert list(graph.edges) == sorted(graph.edges)
+    assert all(u < v for u, v in graph.edges)
+    assert nx.number_of_selfloops(graph) == 0
+
+    np.testing.assert_array_equal(graph.graph["pbc"], atoms.pbc)
+    np.testing.assert_array_equal(graph.graph["cell"], atoms.cell)
