@@ -1270,6 +1270,7 @@ dependencies = [
     { name = "packmol" },
     { name = "rdkit" },
     { name = "typer" },
+    { name = "typing-extensions" },
 ]
 
 [package.optional-dependencies]
@@ -1302,6 +1303,7 @@ requires-dist = [
     { name = "packmol", specifier = ">=21.1.2" },
     { name = "rdkit", specifier = ">=2024" },
     { name = "typer", specifier = ">=0.27.1" },
+    { name = "typing-extensions", specifier = ">=4.15.0" },
     { name = "vesin", marker = "extra == 'vesin'", specifier = ">=0.3.7" },
 ]
 provides-extras = ["vesin"]

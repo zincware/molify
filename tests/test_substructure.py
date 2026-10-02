@@ -67,6 +67,26 @@ def test_iter_fragments(remove_connectivity):
         assert len(atoms) == 3
 
 
+def test_iter_fragments_extxyz(extxyz_roundtrip):
+    water = molify.smiles2conformers("O", 1)
+    ethanol = molify.smiles2conformers("CCO", 1)
+    box = extxyz_roundtrip(molify.pack([water, ethanol], [3, 2], density=900))
+
+    fragments = list(molify.iter_fragments(box))
+
+    assert [f.get_chemical_formula() for f in fragments] == ["H2O"] * 3 + ["C2H6O"] * 2
+
+
+def test_iter_fragments_keeps_unbonded_atoms():
+    water = molify.smiles2conformers("O", 1)
+    lithium = molify.smiles2conformers("[Li+]", 1)
+    box = molify.pack([water, lithium], [1, 1], density=900)
+
+    fragments = list(molify.iter_fragments(box))
+
+    assert [f.get_chemical_formula() for f in fragments] == ["H2O", "Li"]
+
+
 def test_bmim_bf4_no_info():
     bmim = molify.smiles2conformers("CCCCN1C=C[N+](=C1)C", numConfs=1)
     bf4 = molify.smiles2conformers("[B-](F)(F)(F)F", numConfs=1)

@@ -1,9 +1,7 @@
 import copy
-import io
 import re
 
 import ase
-import ase.io
 import numpy as np
 import pytest
 from ase.build import bulk
@@ -219,15 +217,12 @@ def test_repeat_drops_smiles():
     assert atoms.info["smiles"] == "CCO"
 
 
-def test_repeat_extxyz_roundtrip():
+def test_repeat_extxyz_roundtrip(extxyz_roundtrip):
     atoms = molecule_at_origin(
         "C=CC(=O)O", cell=[[8.0, 0.0, 0.0], [4.0, 7.5, 0.0], [2.0, 2.0, 7.0]], pbc=True
     )
     atoms.info["original_index"] = list(range(10, 10 + len(atoms)))
-    buffer = io.StringIO()
-    ase.io.write(buffer, atoms, format="extxyz")
-    buffer.seek(0)
-    loaded = ase.io.read(buffer, format="extxyz")
+    loaded = extxyz_roundtrip(atoms)
     assert isinstance(loaded.info["connectivity"], np.ndarray)
     assert isinstance(loaded.info["original_index"], np.ndarray)
     assert_valid_fixture(loaded)
@@ -277,34 +272,6 @@ def test_repeat_original_index_length_mismatch():
         match=re.escape(
             "atoms.info['original_index'] holds 3 entries for 4 atoms; "
             "it needs one entry per atom"
-        ),
-    ):
-        molify.repeat(atoms, 2)
-
-
-@pytest.mark.parametrize("bad_bond", [(0, 4, 1.0), (0, -1, 1.0)])
-def test_repeat_connectivity_index_out_of_range(bad_bond):
-    atoms = molecule_at_origin("C=O", cell=[6.0, 6.0, 6.0], pbc=True)
-    atoms.info["connectivity"] = [*atoms.info["connectivity"], bad_bond]
-
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            f"bond ({bad_bond[0]}, {bad_bond[1]}) in atoms.info['connectivity'] "
-            "needs atom indices in the range 0..3"
-        ),
-    ):
-        molify.repeat(atoms, 2)
-
-
-def test_repeat_self_bond():
-    atoms = molecule_at_origin("C=O", cell=[6.0, 6.0, 6.0], pbc=True)
-    atoms.info["connectivity"] = [*atoms.info["connectivity"], (2, 2, 1.0)]
-
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "bond (2, 2) in atoms.info['connectivity'] links atom 2 to itself"
         ),
     ):
         molify.repeat(atoms, 2)

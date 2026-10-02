@@ -1,4 +1,7 @@
+import io
+
 import ase
+import ase.io
 import pytest
 
 import molify
@@ -23,3 +26,14 @@ def alanine_dipeptide_box(alanine_dipeptide) -> ase.Atoms:
     """Box of alanine dipeptide molecules using molify.pack"""
     box = molify.pack([[alanine_dipeptide]], counts=[3], density=500)
     return box.copy()
+
+
+@pytest.fixture
+def extxyz_roundtrip():
+    def roundtrip(atoms: ase.Atoms) -> ase.Atoms:
+        buffer = io.StringIO()
+        ase.io.write(buffer, atoms, format="extxyz")
+        buffer.seek(0)
+        return ase.io.read(buffer, format="extxyz")
+
+    return roundtrip

@@ -6,6 +6,7 @@ from ase.neighborlist import neighbor_list
 from rdkit import Chem
 
 from molify.constants import EdgeAttr, GraphAttr, NodeAttr
+from molify.utils import read_connectivity
 
 try:
     import vesin
@@ -131,6 +132,12 @@ def ase2networkx(
     networkx.Graph
         An undirected NetworkX graph with connectivity information.
 
+    Raises
+    ------
+    ValueError
+        For an invalid bond in ``atoms.info['connectivity']``, see
+        :func:`molify.utils.read_connectivity`.
+
     Notes
     -----
     The graph contains the following information:
@@ -172,13 +179,7 @@ def ase2networkx(
     charges = atoms.get_initial_charges()
 
     if GraphAttr.CONNECTIVITY in atoms.info:
-        connectivity = atoms.info[GraphAttr.CONNECTIVITY]
-        # ensure connectivity is list[tuple[int, int, float|None]] and
-        # does not contain np.generic
-        connectivity = [
-            (int(i), int(j), float(bond_order) if bond_order is not None else None)
-            for i, j, bond_order in connectivity
-        ]
+        connectivity = read_connectivity(atoms)
         return _create_graph_from_connectivity(atoms, connectivity, charges)
 
     pairs = _compute_bonded_pairs(atoms, scale, pbc)

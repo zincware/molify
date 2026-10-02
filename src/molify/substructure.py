@@ -8,7 +8,7 @@ from rdkit.Chem import Draw
 
 from molify.ase2x import ase2rdkit
 from molify.constants import GraphAttr
-from molify.utils import find_connected_components
+from molify.utils import fragment_indices
 
 
 def match_substructure(  # noqa: C901
@@ -289,26 +289,26 @@ def iter_fragments(atoms: ase.Atoms) -> list[ase.Atoms]:
     ase.Atoms
         Each connected component (fragment) in the input structure.
 
+    Raises
+    ------
+    ValueError
+        For an invalid bond in ``atoms.info['connectivity']``, see
+        :func:`molify.utils.read_connectivity`.
+
     Examples
     --------
-    >>> from molify import smiles2atoms
-    >>> from rdkit.Chem import CombineMols
+    >>> from molify import iter_fragments, pack, smiles2conformers
     >>>
-    >>> # Create multi-fragment system
-    >>> ethanol = smiles2atoms("CCO")
-    >>> methanol = smiles2atoms("CO")
-    >>> combined = ethanol + methanol
+    >>> water = smiles2conformers("O", 1)
+    >>> ethanol = smiles2conformers("CCO", 1)
+    >>> box = pack([water, ethanol], [2, 1], density=800)
     >>>
-    >>> # Iterate over fragments
-    >>> fragments = list(iter_fragments(combined))
-    >>> len(fragments)
-    2
+    >>> [fragment.get_chemical_formula() for fragment in iter_fragments(box)]
+    ['H2O', 'H2O', 'C2H6O']
     """
     if GraphAttr.CONNECTIVITY in atoms.info:
-        # connectivity is a list of tuples (i, j, bond_type)
-        connectivity = atoms.info[GraphAttr.CONNECTIVITY]
-        for component in find_connected_components(connectivity):
-            yield atoms[list(component)]
+        for indices in fragment_indices(atoms):
+            yield atoms[indices]
     else:
         for molecule in separate(atoms):
             yield molecule

@@ -3,7 +3,7 @@ import numpy as np
 from ase.cell import Cell
 
 from molify.constants import GraphAttr
-from molify.utils import calculate_box_dimensions
+from molify.utils import calculate_box_dimensions, fragment_indices
 
 
 def compress(
@@ -13,8 +13,8 @@ def compress(
 ) -> ase.Atoms:
     """Compress an ASE Atoms object to a target density.
 
-    Arguments
-    ---------
+    Parameters
+    ----------
     atoms : ase.Atoms
         The Atoms object to compress.
     density : float
@@ -22,49 +22,27 @@ def compress(
     freeze_molecules : bool
         If True, freeze the internal degrees of freedom of the molecules
         during compression, to prevent bond compression.
+
+    Raises
+    ------
+    ValueError
+        With ``freeze_molecules=True``, for a missing ``info['connectivity']``
+        or an invalid bond in it, see :func:`molify.utils.read_connectivity`.
     """
     atoms = atoms.copy()
     new_dimensions = np.array(calculate_box_dimensions([atoms], density))
 
     if freeze_molecules:
-        new_cell = Cell.new(new_dimensions)
-        old_cell = atoms.get_cell()
-        connectivity = atoms.info.get(GraphAttr.CONNECTIVITY)
-        if connectivity is None:
+        if atoms.info.get(GraphAttr.CONNECTIVITY) is None:
             raise ValueError("No connectivity info found for freeze_molecules=True")
-
-        # Build molecular fragments
-        from collections import defaultdict
-
-        groups = defaultdict(set)
-        parent = {}
-
-        def find(x):
-            while parent.get(x, x) != x:
-                x = parent[x]
-            return x
-
-        def union(x, y):
-            rx, ry = find(x), find(y)
-            if rx != ry:
-                parent[ry] = rx
-
-        for i, j, _ in connectivity:
-            union(i, j)
-
-        for idx in range(len(atoms)):
-            root = find(idx)
-            groups[root].add(idx)
-
-        t_mat = np.linalg.solve(old_cell.T, new_cell.T)
+        fragments = fragment_indices(atoms)
+        new_cell = Cell.new(new_dimensions)
+        t_mat = np.linalg.solve(atoms.get_cell().T, new_cell.T)
 
         positions = atoms.get_positions()
-        for group in groups.values():
-            group = list(group)
-            com = atoms[group].get_center_of_mass()
-            com_new = com @ t_mat
-            shift = com_new - com
-            positions[group] += shift
+        for fragment in fragments:
+            com = atoms[fragment].get_center_of_mass()
+            positions[fragment] += com @ t_mat - com
 
         atoms.set_positions(positions)
         atoms.set_cell(new_cell, scale_atoms=False)

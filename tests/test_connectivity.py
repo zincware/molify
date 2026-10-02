@@ -1,3 +1,6 @@
+import math
+import re
+
 import numpy as np
 import pytest
 from rdkit.Chem import AddHs, MolFromSmiles, MolToSmiles
@@ -66,3 +69,88 @@ def test_networkx2ase_numpy_types():
     atoms.info["connectivity"] = np.array(atoms.info["connectivity"], dtype=float)
     # this did raise an error before the fix
     molify.unwrap_structures(atoms)
+
+
+CONNECTIVITY_READERS = {
+    "ase2networkx": molify.ase2networkx,
+    "repeat": lambda atoms: molify.repeat(atoms, 2),
+    "pack": lambda atoms: molify.pack([[atoms]], [1], density=1000),
+    "iter_fragments": lambda atoms: list(molify.iter_fragments(atoms)),
+    "compress": lambda atoms: molify.compress(atoms, 1000, freeze_molecules=True),
+}
+
+
+@pytest.mark.parametrize(
+    "reader", CONNECTIVITY_READERS.values(), ids=CONNECTIVITY_READERS
+)
+@pytest.mark.parametrize(
+    ("bad_bond", "message"),
+    [
+        pytest.param(
+            (0, 4, 1.0),
+            "bond (0, 4) in atoms.info['connectivity'] needs atom indices in the "
+            "range 0..3",
+            id="out-of-range",
+        ),
+        pytest.param(
+            (0, -1, 1.0),
+            "bond (0, -1) in atoms.info['connectivity'] needs atom indices in the "
+            "range 0..3",
+            id="negative",
+        ),
+        pytest.param(
+            (2, 2, 1.0),
+            "bond (2, 2) in atoms.info['connectivity'] links atom 2 to itself",
+            id="self-bond",
+        ),
+        pytest.param(
+            (0, 1.9, 1.0),
+            "bond (0, 1.9) in atoms.info['connectivity'] needs integer atom indices",
+            id="non-integer",
+        ),
+        pytest.param(
+            (0, math.inf, 1.0),
+            "bond (0, inf) in atoms.info['connectivity'] needs integer atom indices",
+            id="infinite",
+        ),
+        pytest.param(
+            (0, math.nan, 1.0),
+            "bond (0, nan) in atoms.info['connectivity'] needs integer atom indices",
+            id="nan",
+        ),
+        pytest.param(
+            (0, None, 1.0),
+            "bond (0, None) in atoms.info['connectivity'] needs integer atom indices",
+            id="none",
+        ),
+        pytest.param(
+            (0, True, 1.0),
+            "bond (0, True) in atoms.info['connectivity'] needs integer atom indices",
+            id="bool",
+        ),
+        pytest.param(
+            (0, "1", 1.0),
+            "bond (0, '1') in atoms.info['connectivity'] needs integer atom indices",
+            id="string",
+        ),
+        pytest.param(
+            (0, 1),
+            "bond (0, 1) in atoms.info['connectivity'] needs three entries "
+            "(i, j, order)",
+            id="two-entries",
+        ),
+        pytest.param(
+            1.0,
+            "bond 1.0 in atoms.info['connectivity'] needs three entries (i, j, order)",
+            id="scalar",
+        ),
+    ],
+)
+def test_invalid_connectivity(reader, bad_bond, message):
+    atoms = molify.smiles2atoms("C=O")
+    atoms.cell = [6.0, 6.0, 6.0]
+    atoms.pbc = True
+    atoms.info["connectivity"] = [*atoms.info["connectivity"], bad_bond]
+
+    with pytest.raises(ValueError, match=re.escape(message)):
+        reader(atoms)

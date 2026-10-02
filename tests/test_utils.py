@@ -1,5 +1,3 @@
-import sys
-
 import networkx as nx
 import numpy as np
 import pytest
@@ -147,25 +145,20 @@ def test_idempotent():
     assert np.allclose(unwrapped.get_positions(), unwrapped2.get_positions())
 
 
-@pytest.mark.parametrize("networkx", [True, False])
-def test_find_connected_components_networkx(monkeypatch, networkx):
-    if not networkx:
-        monkeypatch.setitem(sys.modules, "networkx", None)
-
+def test_find_connected_components_is_deprecated():
     connectivity = [
         (0, 1, 1.0),
-        (0, 1, 1.0),  # duplicate edge
+        (0, 1, 1.0),
         (1, 2, 1.0),
         (4, 3, 1.0),
         (4, 5, 1.0),
         (6, 7, 1.0),
     ]
 
-    components = list(find_connected_components(connectivity))
-    assert len(components) == 3
-    assert set(components[0]) == {0, 1, 2}
-    assert set(components[1]) == {3, 4, 5}
-    assert set(components[2]) == {6, 7}
+    with pytest.warns(DeprecationWarning, match="fragment_indices"):
+        components = list(find_connected_components(connectivity))
+
+    assert components == [{0, 1, 2}, {3, 4, 5}, {6, 7}]
 
 
 @pytest.mark.parametrize(
