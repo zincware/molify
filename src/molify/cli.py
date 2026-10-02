@@ -94,7 +94,7 @@ def smiles2atoms(
     try:
         atoms = _smiles2atoms(smiles, seed=seed)
     except ValueError as err:
-        raise typer.BadParameter(str(err), param_hint="'SMILES'") from err
+        raise typer.BadParameter(str(err), param_hint=["smiles"]) from err
     with io.StringIO() as handle:
         ase.io.write(handle, atoms, format=_resolve_format(fmt))
         sys.stdout.write(handle.getvalue())

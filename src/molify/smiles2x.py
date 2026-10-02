@@ -50,7 +50,7 @@ def smiles2atoms(smiles: str, seed: int = 42) -> ase.Atoms:
     Raises
     ------
     ValueError
-        If rdkit fails to parse or embed ``smiles``.
+        If RDKit fails to parse or embed ``smiles``.
 
     Notes
     -----
@@ -95,7 +95,7 @@ def smiles2conformers(
     Raises
     ------
     ValueError
-        If rdkit fails to parse ``smiles`` or embeds fewer than ``numConfs``
+        If RDKit fails to parse ``smiles`` or embeds fewer than ``numConfs``
         conformers.
 
     Notes

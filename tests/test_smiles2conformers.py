@@ -1,5 +1,6 @@
 import itertools
 import re
+from functools import partial
 
 import numpy as np
 import pytest
@@ -80,25 +81,16 @@ def test_smiles2conformers_rejects_unparseable_smiles(smiles):
         smiles2conformers(smiles, numConfs=3)
 
 
-def test_smiles2atoms_rejects_unparseable_smiles():
-    with pytest.raises(ValueError, match=re.escape("rdkit cannot parse SMILES 'C1CC'")):
-        smiles2atoms("C1CC")
-
-
-def test_smiles2conformers_rejects_unembeddable_smiles():
+@pytest.mark.parametrize(
+    ("convert", "num_confs"),
+    [(partial(smiles2conformers, numConfs=3), 3), (smiles2atoms, 1)],
+    ids=["smiles2conformers", "smiles2atoms"],
+)
+def test_rejects_unembeddable_smiles(convert, num_confs):
     smiles = "[Fe](C)(C)(C)(C)(C)(C)(C)(C)"
-    with pytest.raises(
-        ValueError, match=re.escape(f"rdkit embedded 0 of 3 conformers of {smiles!r}")
-    ):
-        smiles2conformers(smiles, numConfs=3)
-
-
-def test_smiles2atoms_rejects_unembeddable_smiles():
-    smiles = "[Fe](C)(C)(C)(C)(C)(C)(C)(C)"
-    with pytest.raises(
-        ValueError, match=re.escape(f"rdkit embedded 0 of 1 conformers of {smiles!r}")
-    ):
-        smiles2atoms(smiles)
+    message = f"rdkit embedded 0 of {num_confs} conformers of {smiles!r}"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        convert(smiles)
 
 
 def test_smiles2conformers_rejects_partial_embedding():

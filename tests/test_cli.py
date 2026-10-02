@@ -73,4 +73,6 @@ def test_smiles2atoms_ase_rejects_format(fmt):
 def test_smiles2atoms_reports_unparseable_smiles():
     result = runner.invoke(app, ["smiles2atoms", "C1CC"])
     assert result.exit_code == 2
-    assert "rdkit cannot parse SMILES 'C1CC'" in result.output
+    assert (
+        "Invalid value for 'smiles': rdkit cannot parse SMILES 'C1CC'" in result.output
+    )
