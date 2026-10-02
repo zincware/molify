@@ -47,6 +47,11 @@ def smiles2atoms(smiles: str, seed: int = 42) -> ase.Atoms:
     ase.Atoms
         The generated Atoms object (first conformer).
 
+    Raises
+    ------
+    ValueError
+        If RDKit fails to parse or embed ``smiles``.
+
     Notes
     -----
     This is a convenience wrapper around smiles2conformers that returns
@@ -87,6 +92,12 @@ def smiles2conformers(
     list[ase.Atoms]
         List of generated conformers as ASE Atoms objects.
 
+    Raises
+    ------
+    ValueError
+        If RDKit fails to parse ``smiles`` or embeds fewer than ``numConfs``
+        conformers.
+
     Notes
     -----
     Special handling is included for PF6- (hexafluorophosphate) which
@@ -110,16 +121,23 @@ def smiles2conformers(
     True
     """
     mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        raise ValueError(f"rdkit cannot parse SMILES {smiles!r}")
     if Chem.MolToSmiles(mol, canonical=True) == "F[P-](F)(F)(F)(F)F":
         return [get_pf6()] * numConfs
 
     mol = Chem.AddHs(mol)
-    rdDistGeom.EmbedMultipleConfs(
+    conformer_ids = rdDistGeom.EmbedMultipleConfs(
         mol,
         numConfs=numConfs,
         randomSeed=randomSeed,
         maxAttempts=maxAttempts,
     )
+    if len(conformer_ids) < numConfs:
+        raise ValueError(
+            f"rdkit embedded {len(conformer_ids)} of {numConfs} conformers"
+            f" of {smiles!r}"
+        )
 
     images: list[ase.Atoms] = []
     charges = [atom.GetFormalCharge() for atom in mol.GetAtoms()]
