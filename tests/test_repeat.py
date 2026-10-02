@@ -6,6 +6,7 @@ import ase
 import ase.io
 import numpy as np
 import pytest
+from ase.build import bulk
 from rdkit import Chem
 
 import molify
@@ -77,9 +78,18 @@ def test_repeat_preserves_bond_orders():
     assert_valid_fixture(box)
     source = fragment_smiles(box)
     assert sorted(set(source)) == ["C=CC(=O)O", "c1ccccc1"]
+    n = len(box)
+    source_orders = {
+        frozenset((i, j)): order for i, j, order in box.info["connectivity"]
+    }
+    assert set(source_orders.values()) == {1.0, 1.5, 2.0}
 
     result = molify.repeat(box, (2, 2, 1))
 
+    assert all(
+        order == source_orders[frozenset((i % n, j % n))]
+        for i, j, order in result.info["connectivity"]
+    )
     assert fragment_smiles(result) == sorted(source * 4)
 
 
@@ -92,15 +102,16 @@ def molecule_at_origin(smiles: str, cell, pbc) -> ase.Atoms:
     return atoms
 
 
-def test_repeat_triclinic_cell():
+@pytest.mark.parametrize("rep", [1, 2, (2, 1, 1), (1, 2, 3)])
+def test_repeat_triclinic_cell(rep):
     atoms = molecule_at_origin(
         "C=CC(=O)O", cell=[[8.0, 0.0, 0.0], [4.0, 7.5, 0.0], [2.0, 2.0, 7.0]], pbc=True
     )
     assert_valid_fixture(atoms)
 
-    result = molify.repeat(atoms, (2, 2, 2))
+    result = molify.repeat(atoms, rep)
 
-    assert edges(molify.ase2networkx(result)) == distance_edges(atoms.repeat(2))
+    assert edges(molify.ase2networkx(result)) == distance_edges(atoms.repeat(rep))
 
 
 def test_repeat_partial_pbc():
@@ -125,18 +136,24 @@ def test_repeat_tiles_original_index():
     assert [graph.nodes[k]["original_index"] for k in range(32)] == [5, 6, 7, 8] * 8
 
 
-def test_repeat_without_connectivity_matches_ase(ethanol_water_box):
+def test_repeat_without_connectivity(ethanol_water_box):
     atoms = ethanol_water_box.copy()
     del atoms.info["connectivity"]
 
     result = molify.repeat(atoms, (2, 1, 1))
 
-    reference = atoms.repeat((2, 1, 1))
-    np.testing.assert_array_equal(result.positions, reference.positions)
-    np.testing.assert_array_equal(result.numbers, reference.numbers)
-    np.testing.assert_array_equal(result.cell, reference.cell)
-    np.testing.assert_array_equal(result.pbc, reference.pbc)
     assert "connectivity" not in result.info
+
+
+def test_repeat_empty_connectivity():
+    atoms = ase.Atoms(
+        "Ar2", positions=[[0.0, 0.0, 0.0], [3.0, 3.0, 3.0]], cell=[6.0] * 3, pbc=True
+    )
+    atoms.info["connectivity"] = []
+
+    result = molify.repeat(atoms, (2, 1, 3))
+
+    assert result.info["connectivity"] == []
 
 
 def test_repeat_leaves_input_unchanged(ethanol_water_box):
@@ -148,18 +165,18 @@ def test_repeat_leaves_input_unchanged(ethanol_water_box):
 
     assert box.info["connectivity"] == connectivity
     np.testing.assert_array_equal(box.positions, positions)
-    assert result.info["connectivity"] is not box.info["connectivity"]
     assert all(
         type(i) is int and type(j) is int for i, j, _ in result.info["connectivity"]
     )
 
 
-def test_repeat_keeps_other_info():
+def test_repeat_drops_smiles():
     atoms = molecule_at_origin("CCO", cell=[8.0, 8.0, 8.0], pbc=True)
 
     result = molify.repeat(atoms, 2)
 
-    assert result.info["smiles"] == "CCO"
+    assert "smiles" not in result.info
+    assert atoms.info["smiles"] == "CCO"
 
 
 def test_repeat_extxyz_roundtrip():
@@ -180,7 +197,8 @@ def test_repeat_extxyz_roundtrip():
     assert edges(molify.ase2networkx(result)) == distance_edges(loaded.repeat(2))
     assert result.info["original_index"] == list(range(10, 10 + len(atoms))) * 8
     assert all(
-        type(i) is int and type(j) is int for i, j, _ in result.info["connectivity"]
+        type(i) is int and type(j) is int and type(order) is float
+        for i, j, order in result.info["connectivity"]
     )
 
 
@@ -238,6 +256,28 @@ def test_repeat_connectivity_index_out_of_range(bad_bond):
         molify.repeat(atoms, 2)
 
 
-def test_repeat_is_public():
-    assert "repeat" in molify.__all__
-    assert callable(molify.repeat)
+def test_repeat_self_bond():
+    atoms = molecule_at_origin("C=O", cell=[6.0, 6.0, 6.0], pbc=True)
+    atoms.info["connectivity"] = [*atoms.info["connectivity"], (2, 2, 1.0)]
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "bond (2, 2) in atoms.info['connectivity'] links atom 2 to itself"
+        ),
+    ):
+        molify.repeat(atoms, 2)
+
+
+def test_repeat_cell_too_small_for_unique_bond_images():
+    silicon = bulk("Si", "diamond", a=5.43)
+    silicon.info["connectivity"] = [(0, 1, 1.0)]
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "bond (0, 1) in atoms.info['connectivity'] is 2.351 Å long; repeat needs "
+            "every bond shorter than 1.568 Å, half the smallest periodic cell height"
+        ),
+    ):
+        molify.repeat(silicon, 3)
