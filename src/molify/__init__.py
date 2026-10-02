@@ -6,6 +6,7 @@ from molify.compress import compress
 from molify.networkx2x import networkx2ase, networkx2rdkit
 from molify.pack import pack
 from molify.rdkit2x import rdkit2ase, rdkit2networkx
+from molify.repeat import repeat
 from molify.smiles2x import smiles2atoms, smiles2conformers
 from molify.substructure import (
     get_substructures,
@@ -27,6 +28,7 @@ __all__ = [
     "pack",
     "smiles2conformers",
     "compress",
+    "repeat",
     "match_substructure",
     "group_matches_by_fragment",
     "get_substructures",
