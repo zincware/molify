@@ -1,3 +1,4 @@
+import re
 import tracemalloc
 from unittest.mock import patch
 
@@ -581,3 +582,31 @@ def test_ase2networkx_graph_contract(ec_emc_li_pf6):
 
     np.testing.assert_array_equal(graph.graph["pbc"], atoms.pbc)
     np.testing.assert_array_equal(graph.graph["cell"], atoms.cell)
+
+
+@pytest.mark.parametrize("bad_bond", [(0, 4, 1.0), (0, -1, 1.0)])
+def test_ase2networkx_connectivity_index_out_of_range(bad_bond):
+    atoms = molify.smiles2atoms("C=O")
+    atoms.info["connectivity"] = [*atoms.info["connectivity"], bad_bond]
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            f"bond ({bad_bond[0]}, {bad_bond[1]}) in atoms.info['connectivity'] "
+            "needs atom indices in the range 0..3"
+        ),
+    ):
+        molify.ase2networkx(atoms)
+
+
+def test_ase2networkx_connectivity_self_bond():
+    atoms = molify.smiles2atoms("C=O")
+    atoms.info["connectivity"] = [*atoms.info["connectivity"], (2, 2, 1.0)]
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "bond (2, 2) in atoms.info['connectivity'] links atom 2 to itself"
+        ),
+    ):
+        molify.ase2networkx(atoms)

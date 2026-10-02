@@ -5,6 +5,7 @@ import numpy as np
 from ase.geometry import find_mic, minkowski_reduce
 
 from molify.constants import GraphAttr, NodeAttr
+from molify.utils import read_connectivity
 
 
 def _normalize_rep(rep: int | Sequence[int]) -> tuple[int, ...]:
@@ -26,24 +27,10 @@ def _tile_bonds(
     atoms: ase.Atoms, reps: tuple[int, ...]
 ) -> list[tuple[int, int, float | None]]:
     n_atoms = len(atoms)
-    first, second, orders = [], [], []
-    for bond in atoms.info[GraphAttr.CONNECTIVITY]:
-        i, j = int(bond[0]), int(bond[1])
-        if not (0 <= i < n_atoms and 0 <= j < n_atoms):
-            raise ValueError(
-                f"bond ({i}, {j}) in atoms.info['connectivity'] needs atom "
-                f"indices in the range 0..{n_atoms - 1}"
-            )
-        if i == j:
-            raise ValueError(
-                f"bond ({i}, {j}) in atoms.info['connectivity'] links atom {i} to "
-                "itself"
-            )
-        first.append(i)
-        second.append(j)
-        orders.append(None if bond[2] is None else float(bond[2]))
-    i = np.array(first, dtype=int)
-    j = np.array(second, dtype=int)
+    bonds = read_connectivity(atoms)
+    i = np.array([bond[0] for bond in bonds], dtype=int)
+    j = np.array([bond[1] for bond in bonds], dtype=int)
+    orders = [bond[2] for bond in bonds]
 
     periodic = atoms.pbc & atoms.cell.any(1)
     d = atoms.positions[j] - atoms.positions[i]

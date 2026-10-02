@@ -1,4 +1,8 @@
 # from molify import pack
+import io
+import re
+
+import ase.io
 import numpy as np
 import numpy.testing as npt
 import pytest
@@ -134,3 +138,50 @@ def test_pack_ratio():
     assert box.cell[0, 0] * 3 == pytest.approx(box.cell[2, 2])
     assert box.get_volume() == pytest.approx(300, rel=1e-2)
     # npt.assert_allclose(box.get_positions(), box.get_positions(wrap=True))
+
+
+def extxyz_roundtrip(atoms):
+    buffer = io.StringIO()
+    ase.io.write(buffer, atoms, format="extxyz")
+    buffer.seek(0)
+    return ase.io.read(buffer, format="extxyz")
+
+
+def test_pack_connectivity_from_extxyz():
+    water = extxyz_roundtrip(smiles2conformers("O", 1)[0])
+    assert isinstance(water.info["connectivity"], np.ndarray)
+
+    atoms = pack([[water]], [2], density=1000)
+
+    assert atoms.info["connectivity"] == [
+        (0, 1, 1.0),
+        (0, 2, 1.0),
+        (3, 4, 1.0),
+        (3, 5, 1.0),
+    ]
+    assert all(
+        type(i) is int and type(j) is int and type(order) is float
+        for i, j, order in atoms.info["connectivity"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("bad_bond", "message"),
+    [
+        (
+            (0, 3, 1.0),
+            "bond (0, 3) in atoms.info['connectivity'] needs atom indices in the "
+            "range 0..2",
+        ),
+        (
+            (1, 1, 1.0),
+            "bond (1, 1) in atoms.info['connectivity'] links atom 1 to itself",
+        ),
+    ],
+)
+def test_pack_invalid_connectivity(bad_bond, message):
+    water = smiles2conformers("O", 1)[0]
+    water.info["connectivity"] = [*water.info["connectivity"], bad_bond]
+
+    with pytest.raises(ValueError, match=re.escape(message)):
+        pack([[water]], [2], density=1000)

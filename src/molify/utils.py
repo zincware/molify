@@ -14,6 +14,47 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from rdkit import Chem
 
+from molify.constants import GraphAttr
+
+
+def read_connectivity(atoms: ase.Atoms) -> list[tuple[int, int, float | None]]:
+    """Read ``atoms.info['connectivity']`` as native Python bonds.
+
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Structure whose ``info['connectivity']`` holds ``(i, j, order)`` bonds,
+        e.g. a list of tuples or the float array an extxyz file loads.
+
+    Returns
+    -------
+    list[tuple[int, int, float | None]]
+        One ``(i, j, order)`` tuple per bond with ``int`` atom indices and a
+        ``float`` or ``None`` bond order.
+
+    Raises
+    ------
+    ValueError
+        For a bond with an atom index outside ``0..len(atoms) - 1`` or a bond
+        that links an atom to itself.
+    """
+    n_atoms = len(atoms)
+    bonds = []
+    for i, j, order in atoms.info[GraphAttr.CONNECTIVITY]:
+        i, j = int(i), int(j)
+        if not (0 <= i < n_atoms and 0 <= j < n_atoms):
+            raise ValueError(
+                f"bond ({i}, {j}) in atoms.info['connectivity'] needs atom "
+                f"indices in the range 0..{n_atoms - 1}"
+            )
+        if i == j:
+            raise ValueError(
+                f"bond ({i}, {j}) in atoms.info['connectivity'] links atom {i} to "
+                "itself"
+            )
+        bonds.append((i, j, None if order is None else float(order)))
+    return bonds
+
 
 def bond_type_from_order(order):
     if order == 1.0:

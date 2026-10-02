@@ -10,7 +10,7 @@ from ase.io.proteindatabank import write_proteindatabank
 from rdkit import Chem
 
 from molify.constants import GraphAttr
-from molify.utils import calculate_box_dimensions
+from molify.utils import calculate_box_dimensions, read_connectivity
 
 log = logging.getLogger(__name__)
 
@@ -130,8 +130,8 @@ def _extract_atom_arrays(
         bonds = []
         offset = 0
         for atoms in selected_images:
-            for bond in atoms.info[GraphAttr.CONNECTIVITY]:
-                bonds.append((bond[0] + offset, bond[1] + offset, bond[2]))
+            for i, j, order in read_connectivity(atoms):
+                bonds.append((i + offset, j + offset, order))
             offset += len(atoms)
         packed_atoms.info[GraphAttr.CONNECTIVITY] = bonds
     charges = np.concatenate([atom.get_initial_charges() for atom in selected_images])
@@ -188,6 +188,12 @@ def pack(
     -------
     ase.Atoms
         An ASE Atoms object representing the packed system.
+
+    Raises
+    ------
+    ValueError
+        For a bond in a molecule's ``info['connectivity']`` with an atom index
+        outside that molecule or one that links an atom to itself.
 
     Example
     -------
