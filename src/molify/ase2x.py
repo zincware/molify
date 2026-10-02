@@ -1,7 +1,8 @@
 import ase
 import networkx as nx
 import numpy as np
-from ase.neighborlist import natural_cutoffs, neighbor_list
+from ase.data import covalent_radii
+from ase.neighborlist import neighbor_list
 from rdkit import Chem
 
 from molify.constants import EdgeAttr, GraphAttr, NodeAttr
@@ -10,6 +11,9 @@ try:
     import vesin
 except ImportError:
     vesin = None
+
+# Li, Na, K, Rb, Cs, Fr
+_NON_BONDING_ATOMIC_NUMBERS = (3, 11, 19, 37, 55, 87)
 
 
 def _create_graph_from_connectivity(
@@ -39,17 +43,30 @@ def _create_graph_from_connectivity(
     return graph
 
 
-def _compute_connectivity_matrix(atoms: ase.Atoms, scale: float, pbc: bool):
-    """Compute connectivity matrix from distance-based cutoffs."""
-    # non-bonding positive charged atoms / ions.
-    non_bonding_atomic_numbers = {3, 11, 19, 37, 55, 87}
+def _compute_bonded_pairs(atoms: ase.Atoms, scale: float, pbc: bool) -> np.ndarray:
+    """Compute bonded atom pairs from distance-based cutoffs.
 
-    atomic_numbers = atoms.get_atomic_numbers()
-    excluded_mask = np.isin(atomic_numbers, list(non_bonding_atomic_numbers))
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Structure to search for bonds.
+    scale : float
+        Factor applied to the covalent radii.
+    pbc : bool
+        Whether bonds may cross periodic boundaries.
 
-    atom_radii = np.array(natural_cutoffs(atoms, mult=scale))
-    pairwise_cutoffs = atom_radii[:, None] + atom_radii[None, :]
-    max_cutoff = np.max(pairwise_cutoffs)
+    Returns
+    -------
+    numpy.ndarray
+        Shape ``(M, 2)``; unique ``(i, j)`` rows with ``i < j``, sorted
+        lexicographically.
+    """
+    radii = covalent_radii[atoms.numbers] * scale
+    bonding = ~np.isin(atoms.numbers, _NON_BONDING_ATOMIC_NUMBERS)
+    if not bonding.any():
+        return np.empty((0, 2), dtype=np.intp)
+    # Neighbor lists keep d < cutoff; one ulp more keeps pairs at exactly the cutoff.
+    max_cutoff = np.nextafter(2 * radii[bonding].max(), np.inf)
 
     if vesin is not None:
         try:
@@ -66,31 +83,13 @@ def _compute_connectivity_matrix(atoms: ase.Atoms, scale: float, pbc: bool):
             "ijdS", atoms, cutoff=max_cutoff, self_interaction=False
         )
 
-    # If pbc=False, filter out bonds that cross periodic boundaries
+    keep = (i < j) & bonding[i] & bonding[j] & (d <= radii[i] + radii[j])
     if not pbc:
-        non_periodic_mask = np.all(s == 0, axis=1)
-        i = i[non_periodic_mask]
-        j = j[non_periodic_mask]
-        d = d[non_periodic_mask]
-
-    d_ij = np.full((len(atoms), len(atoms)), np.inf)
-    d_ij[i, j] = d
-    np.fill_diagonal(d_ij, 0.0)
-
-    # mask out non-bonding atoms
-    d_ij[excluded_mask, :] = np.inf
-    d_ij[:, excluded_mask] = np.inf
-
-    connectivity_matrix = np.zeros((len(atoms), len(atoms)), dtype=int)
-    np.fill_diagonal(d_ij, np.inf)
-    connectivity_matrix[d_ij <= pairwise_cutoffs] = 1
-
-    return connectivity_matrix, non_bonding_atomic_numbers
+        keep &= ~s.any(axis=1)
+    return np.unique(np.stack([i[keep], j[keep]], axis=1), axis=0)
 
 
-def _add_node_properties(
-    graph: nx.Graph, atoms: ase.Atoms, charges, non_bonding_atomic_numbers
-):
+def _add_node_properties(graph: nx.Graph, atoms: ase.Atoms, charges):
     """Add node properties to the graph."""
     stored_indices = atoms.info.get(NodeAttr.ORIGINAL_INDEX)
 
@@ -100,7 +99,7 @@ def _add_node_properties(
         graph.nodes[i][NodeAttr.ATOMIC_NUMBER] = int(atom.number)
         graph.nodes[i][NodeAttr.ORIGINAL_INDEX] = original_index
         graph.nodes[i][NodeAttr.CHARGE] = float(charges[i])
-        if atom.number in non_bonding_atomic_numbers:
+        if atom.number in _NON_BONDING_ATOMIC_NUMBERS:
             graph.nodes[i][NodeAttr.CHARGE] = 1.0
 
 
@@ -150,7 +149,11 @@ def ase2networkx(
     Connectivity is determined by:
 
     1. Using explicit connectivity if present in atoms.info
-    2. Otherwise using distance-based cutoffs (edges will have bond_order=None)
+    2. Otherwise using distance-based cutoffs: atoms *i* and *j* are bonded
+       when any periodic image of *j* lies within ``scale * (r_i + r_j)`` of
+       *i*, with *r* the covalent radius. Li, Na, K, Rb, Cs and Fr are
+       non-bonding ions. Edges have ``bond_order=None``; memory scales
+       linearly with the number of atoms.
 
     To get bond orders, pass the graph to networkx2rdkit().
 
@@ -178,15 +181,13 @@ def ase2networkx(
         ]
         return _create_graph_from_connectivity(atoms, connectivity, charges)
 
-    connectivity_matrix, non_bonding_atomic_numbers = _compute_connectivity_matrix(
-        atoms, scale, pbc
-    )
+    pairs = _compute_bonded_pairs(atoms, scale, pbc)
 
-    graph = nx.from_numpy_array(connectivity_matrix, edge_attr=None)
-    for u, v in graph.edges():
-        graph.edges[u, v][EdgeAttr.BOND_ORDER] = None
+    graph = nx.Graph()
+    graph.add_nodes_from(range(len(atoms)))
+    graph.add_edges_from(pairs.tolist(), **{EdgeAttr.BOND_ORDER: None})
 
-    _add_node_properties(graph, atoms, charges, non_bonding_atomic_numbers)
+    _add_node_properties(graph, atoms, charges)
 
     graph.graph[GraphAttr.PBC] = atoms.pbc
     graph.graph[GraphAttr.CELL] = atoms.cell
