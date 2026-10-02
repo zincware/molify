@@ -21,8 +21,8 @@ jobs:
           - "3.12"
           - "3.11"
           - "3.10"
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-15-intel, macos-latest]
-        # windows-11-arm -> rdkit support missing
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest]
+        # windows-11-arm, macos-15-intel -> rdkit support missing
 
     steps:
       - uses: actions/checkout@v5
