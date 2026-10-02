@@ -14,6 +14,7 @@ from ase.data.colors import jmol_colors
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from rdkit import Chem
+from typing_extensions import deprecated
 
 from molify.constants import GraphAttr
 
@@ -112,6 +113,15 @@ def fragment_indices(atoms: ase.Atoms) -> list[list[int]]:
     graph.add_nodes_from(range(len(atoms)))
     graph.add_edges_from((i, j) for i, j, _ in read_connectivity(atoms))
     return sorted(sorted(component) for component in nx.connected_components(graph))
+
+
+@deprecated(
+    "find_connected_components is deprecated; use molify.utils.fragment_indices(atoms)"
+)
+def find_connected_components(connectivity: list[tuple[int, int, float]]):
+    graph = nx.Graph()
+    graph.add_edges_from((i, j) for i, j, _ in connectivity)
+    yield from nx.connected_components(graph)
 
 
 def calculate_density(atoms: ase.Atoms) -> float:

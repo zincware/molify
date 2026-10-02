@@ -6,6 +6,7 @@ from ase import Atoms
 
 import molify
 from molify.utils import (
+    find_connected_components,
     rdkit_determine_bonds,
     suggestions2networkx,
     unwrap_structures,
@@ -142,6 +143,22 @@ def test_idempotent():
     unwrapped2 = unwrap_structures(unwrapped.copy())
 
     assert np.allclose(unwrapped.get_positions(), unwrapped2.get_positions())
+
+
+def test_find_connected_components_is_deprecated():
+    connectivity = [
+        (0, 1, 1.0),
+        (0, 1, 1.0),
+        (1, 2, 1.0),
+        (4, 3, 1.0),
+        (4, 5, 1.0),
+        (6, 7, 1.0),
+    ]
+
+    with pytest.warns(DeprecationWarning, match="fragment_indices"):
+        components = list(find_connected_components(connectivity))
+
+    assert components == [{0, 1, 2}, {3, 4, 5}, {6, 7}]
 
 
 @pytest.mark.parametrize(
