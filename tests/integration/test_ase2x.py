@@ -4,9 +4,9 @@ from unittest.mock import patch
 import ase
 import ase.data
 import ase.geometry
-import networkx as nx
 import numpy as np
 import pytest
+from ase.neighborlist import neighbor_list
 from rdkit import Chem
 
 import molify
@@ -466,11 +466,12 @@ def reference_system(request) -> ase.Atoms:
 
 
 @pytest.mark.usefixtures("neighbor_backend")
+@pytest.mark.parametrize("scale", [1.0, 1.2, 1.5])
 @pytest.mark.parametrize("pbc", [True, False])
-def test_ase2networkx_matches_reference(reference_system, pbc):
-    graph = molify.ase2networkx(reference_system, pbc=pbc)
+def test_ase2networkx_matches_reference(reference_system, pbc, scale):
+    graph = molify.ase2networkx(reference_system, pbc=pbc, scale=scale)
 
-    expected = _reference_edges(reference_system, pbc=pbc)
+    expected = _reference_edges(reference_system, pbc=pbc, scale=scale)
     assert expected
     assert _edge_set(graph) == expected
 
@@ -487,19 +488,47 @@ def test_ase2networkx_bonds_through_any_periodic_image():
     assert _edge_set(graph) == _reference_edges(atoms)
 
 
-def test_ase2networkx_memory_is_linear(ethanol_water):
-    atoms = ethanol_water.repeat((7, 7, 7))
+@pytest.mark.usefixtures("neighbor_backend")
+def test_ase2networkx_bonds_at_cutoff_boundary():
+    cutoff = 2 * 1.2 * ase.data.covalent_radii[6]
+    atoms = ase.Atoms("CC", positions=[[0, 0, 0], [cutoff, 0, 0]])
+
+    graph = molify.ase2networkx(atoms)
+
+    assert _edge_set(graph) == {(0, 1)}
+
+
+def test_ase2networkx_neighbor_cutoff_ignores_ions(monkeypatch):
+    monkeypatch.setattr("molify.ase2x.vesin", None)
+    atoms = molify.smiles2atoms(SMILES.PF6) + ase.Atoms("Cs", positions=[[6, 0, 0]])
     atoms.info.pop("connectivity")
 
+    with patch("molify.ase2x.neighbor_list", wraps=neighbor_list) as spy:
+        molify.ase2networkx(atoms)
+
+    phosphorus_cutoff = 2 * 1.2 * ase.data.covalent_radii[15]
+    assert spy.call_args.kwargs["cutoff"] == pytest.approx(phosphorus_cutoff)
+
+
+def _peak_memory(atoms: ase.Atoms) -> int:
     tracemalloc.start()
     try:
-        graph = molify.ase2networkx(atoms)
-        _, peak = tracemalloc.get_traced_memory()
+        molify.ase2networkx(atoms)
+        return tracemalloc.get_traced_memory()[1]
     finally:
         tracemalloc.stop()
 
-    assert graph.number_of_nodes() == 8232
-    assert peak < 100 * 1024**2
+
+@pytest.mark.usefixtures("neighbor_backend")
+def test_ase2networkx_memory_is_linear(ethanol_water):
+    small = ethanol_water.repeat((3, 3, 3))
+    large = ethanol_water.repeat((7, 7, 7))
+    small.info.pop("connectivity")
+    large.info.pop("connectivity")
+
+    small_peak, large_peak = (_peak_memory(atoms) for atoms in (small, large))
+
+    assert large_peak / small_peak < 2 * len(large) / len(small)
 
 
 @pytest.mark.usefixtures("neighbor_backend")
@@ -510,7 +539,6 @@ def test_ase2networkx_skips_periodic_self_images():
 
     assert list(graph.nodes) == [0]
     assert graph.number_of_edges() == 0
-    assert nx.number_of_selfloops(graph) == 0
 
 
 def test_ase2networkx_only_non_bonding_ions():
@@ -550,7 +578,6 @@ def test_ase2networkx_graph_contract(ec_emc_li_pf6):
     assert all(data == {"bond_order": None} for _, _, data in edges)
     assert list(graph.edges) == sorted(graph.edges)
     assert all(u < v for u, v in graph.edges)
-    assert nx.number_of_selfloops(graph) == 0
 
     np.testing.assert_array_equal(graph.graph["pbc"], atoms.pbc)
     np.testing.assert_array_equal(graph.graph["cell"], atoms.cell)

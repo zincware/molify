@@ -13,7 +13,7 @@ except ImportError:
     vesin = None
 
 # Li, Na, K, Rb, Cs, Fr
-_NON_BONDING_ATOMIC_NUMBERS = frozenset({3, 11, 19, 37, 55, 87})
+_NON_BONDING_ATOMIC_NUMBERS = (3, 11, 19, 37, 55, 87)
 
 
 def _create_graph_from_connectivity(
@@ -46,6 +46,15 @@ def _create_graph_from_connectivity(
 def _compute_bonded_pairs(atoms: ase.Atoms, scale: float, pbc: bool) -> np.ndarray:
     """Compute bonded atom pairs from distance-based cutoffs.
 
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Structure to search for bonds.
+    scale : float
+        Factor applied to the covalent radii.
+    pbc : bool
+        Whether bonds may cross periodic boundaries.
+
     Returns
     -------
     numpy.ndarray
@@ -53,10 +62,11 @@ def _compute_bonded_pairs(atoms: ase.Atoms, scale: float, pbc: bool) -> np.ndarr
         lexicographically.
     """
     radii = covalent_radii[atoms.numbers] * scale
-    bonding = ~np.isin(atoms.numbers, list(_NON_BONDING_ATOMIC_NUMBERS))
+    bonding = ~np.isin(atoms.numbers, _NON_BONDING_ATOMIC_NUMBERS)
     if not bonding.any():
         return np.empty((0, 2), dtype=np.intp)
-    max_cutoff = float(2 * radii[bonding].max())
+    # Neighbor lists keep d < cutoff; one ulp more keeps pairs at exactly the cutoff.
+    max_cutoff = np.nextafter(2 * radii[bonding].max(), np.inf)
 
     if vesin is not None:
         try:
@@ -79,9 +89,7 @@ def _compute_bonded_pairs(atoms: ase.Atoms, scale: float, pbc: bool) -> np.ndarr
     return np.unique(np.stack([i[keep], j[keep]], axis=1), axis=0)
 
 
-def _add_node_properties(
-    graph: nx.Graph, atoms: ase.Atoms, charges, non_bonding_atomic_numbers
-):
+def _add_node_properties(graph: nx.Graph, atoms: ase.Atoms, charges):
     """Add node properties to the graph."""
     stored_indices = atoms.info.get(NodeAttr.ORIGINAL_INDEX)
 
@@ -91,7 +99,7 @@ def _add_node_properties(
         graph.nodes[i][NodeAttr.ATOMIC_NUMBER] = int(atom.number)
         graph.nodes[i][NodeAttr.ORIGINAL_INDEX] = original_index
         graph.nodes[i][NodeAttr.CHARGE] = float(charges[i])
-        if atom.number in non_bonding_atomic_numbers:
+        if atom.number in _NON_BONDING_ATOMIC_NUMBERS:
             graph.nodes[i][NodeAttr.CHARGE] = 1.0
 
 
@@ -179,7 +187,7 @@ def ase2networkx(
     graph.add_nodes_from(range(len(atoms)))
     graph.add_edges_from(pairs.tolist(), **{EdgeAttr.BOND_ORDER: None})
 
-    _add_node_properties(graph, atoms, charges, _NON_BONDING_ATOMIC_NUMBERS)
+    _add_node_properties(graph, atoms, charges)
 
     graph.graph[GraphAttr.PBC] = atoms.pbc
     graph.graph[GraphAttr.CELL] = atoms.cell
