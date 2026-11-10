@@ -1,12 +1,16 @@
 import ase
 import networkx as nx
 from rdkit import Chem
-from rdkit.Chem import AllChem
 
 from molify.constants import EdgeAttr, GraphAttr, NodeAttr
+from molify.utils import embed_conformers
 
 
-def rdkit2ase(mol: Chem.Mol, seed: int = 42) -> ase.Atoms:
+def rdkit2ase(
+    mol: Chem.Mol,
+    seed: int = 42,
+    useRandomCoords: bool = False,  # noqa N803
+) -> ase.Atoms:
     """Convert an RDKit molecule to an ASE Atoms object.
 
     Parameters
@@ -15,6 +19,10 @@ def rdkit2ase(mol: Chem.Mol, seed: int = 42) -> ase.Atoms:
         RDKit molecule to convert
     seed : int, optional
         Random seed for conformer generation (default is 42)
+    useRandomCoords : bool, optional
+        Start the embedding from random coordinates instead of the eigenvectors
+        of the distance matrix (default is False). Long chains, such as
+        n-alkanes from about C56 on, often embed only this way.
 
     Returns
     -------
@@ -25,6 +33,11 @@ def rdkit2ase(mol: Chem.Mol, seed: int = 42) -> ase.Atoms:
         - Connectivity information in atoms.info
         - Formal charges if present
         - SMILES string in atoms.info
+
+    Raises
+    ------
+    ValueError
+        If RDKit fails to embed ``mol``.
 
     Examples
     --------
@@ -41,7 +54,7 @@ def rdkit2ase(mol: Chem.Mol, seed: int = 42) -> ase.Atoms:
     smiles = Chem.MolToSmiles(mol)
     mol = Chem.AddHs(mol)
     charges = [atom.GetFormalCharge() for atom in mol.GetAtoms()]
-    AllChem.EmbedMolecule(mol, randomSeed=seed)
+    embed_conformers(mol, smiles, 1, seed, 0, useRandomCoords)
 
     atoms = ase.Atoms(
         positions=mol.GetConformer().GetPositions(),

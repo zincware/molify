@@ -1,9 +1,9 @@
 import ase
 import numpy as np
 from rdkit import Chem
-from rdkit.Chem import rdDistGeom
 
 from molify.constants import GraphAttr
+from molify.utils import embed_conformers
 
 
 def get_pf6() -> ase.Atoms:
@@ -32,7 +32,11 @@ def get_pf6() -> ase.Atoms:
     return atoms
 
 
-def smiles2atoms(smiles: str, seed: int = 42) -> ase.Atoms:
+def smiles2atoms(
+    smiles: str,
+    seed: int = 42,
+    useRandomCoords: bool = False,  # noqa N803
+) -> ase.Atoms:
     """Convert a SMILES string to an ASE Atoms object.
 
     Parameters
@@ -41,6 +45,10 @@ def smiles2atoms(smiles: str, seed: int = 42) -> ase.Atoms:
         The SMILES string to convert.
     seed : int, optional
         Random seed for conformer generation (default is 42).
+    useRandomCoords : bool, optional
+        Start the embedding from random coordinates instead of the eigenvectors
+        of the distance matrix (default is False). Long chains, such as
+        n-alkanes from about C56 on, often embed only this way.
 
     Returns
     -------
@@ -65,7 +73,7 @@ def smiles2atoms(smiles: str, seed: int = 42) -> ase.Atoms:
     >>> isinstance(atoms, ase.Atoms)
     True
     """
-    return smiles2conformers(smiles, 1, seed)[0]
+    return smiles2conformers(smiles, 1, seed, useRandomCoords=useRandomCoords)[0]
 
 
 def smiles2conformers(
@@ -73,6 +81,7 @@ def smiles2conformers(
     numConfs: int,  # noqa N803
     randomSeed: int = 42,  # noqa N803
     maxAttempts: int = 1000,  # noqa N803
+    useRandomCoords: bool = False,  # noqa N803
 ) -> list[ase.Atoms]:
     """Generate multiple molecular conformers from a SMILES string.
 
@@ -86,6 +95,10 @@ def smiles2conformers(
         Random seed for conformer generation (default is 42).
     maxAttempts : int, optional
         Maximum number of embedding attempts (default is 1000).
+    useRandomCoords : bool, optional
+        Start each embedding from random coordinates instead of the
+        eigenvectors of the distance matrix (default is False). Long chains,
+        such as n-alkanes from about C56 on, often embed only this way.
 
     Returns
     -------
@@ -127,17 +140,7 @@ def smiles2conformers(
         return [get_pf6()] * numConfs
 
     mol = Chem.AddHs(mol)
-    conformer_ids = rdDistGeom.EmbedMultipleConfs(
-        mol,
-        numConfs=numConfs,
-        randomSeed=randomSeed,
-        maxAttempts=maxAttempts,
-    )
-    if len(conformer_ids) < numConfs:
-        raise ValueError(
-            f"rdkit embedded {len(conformer_ids)} of {numConfs} conformers"
-            f" of {smiles!r}"
-        )
+    embed_conformers(mol, smiles, numConfs, randomSeed, maxAttempts, useRandomCoords)
 
     images: list[ase.Atoms] = []
     charges = [atom.GetFormalCharge() for atom in mol.GetAtoms()]

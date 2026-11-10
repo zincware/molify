@@ -124,7 +124,6 @@ For example, molify provides helper functions to generate 3D conformers directly
    # Generate 10 different 3D conformers of water
    water = molify.smiles2conformers("O", numConfs=10)
 
-
 **Molecular System Building**
 
 For many applications, it is useful to solvate molecules or create mixtures.

@@ -1,3 +1,5 @@
+import re
+
 import ase
 import numpy as np
 import numpy.testing as npt
@@ -203,3 +205,15 @@ class TestRdkit2NetworkxOriginalIndex:
 
         for node_id, attributes in graph.nodes(data=True):
             assert attributes[NodeAttr.ORIGINAL_INDEX] == node_id
+
+
+def test_rdkit2ase_embeds_long_chains_from_random_coords():
+    atoms = rdkit2ase(Chem.MolFromSmiles("C" * 56), seed=42, useRandomCoords=True)
+    assert atoms.get_chemical_formula() == "C56H114"
+
+
+def test_rdkit2ase_rejects_unembeddable_mol():
+    mol = Chem.MolFromSmiles("[Fe](C)(C)(C)(C)(C)(C)(C)(C)")
+    message = f"rdkit embedded 0 of 1 conformers of {Chem.MolToSmiles(mol)!r}"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        rdkit2ase(mol)

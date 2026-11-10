@@ -81,22 +81,46 @@ def test_smiles2conformers_rejects_unparseable_smiles(smiles):
         smiles2conformers(smiles, numConfs=3)
 
 
+RANDOM_COORDS_HINT = "; random starting coordinates often embed large molecules"
+
+
+@pytest.mark.parametrize(
+    ("use_random_coords", "hint"),
+    [(False, RANDOM_COORDS_HINT), (True, "")],
+    ids=["eigenvector-coords", "random-coords"],
+)
 @pytest.mark.parametrize(
     ("convert", "num_confs"),
     [(partial(smiles2conformers, numConfs=3), 3), (smiles2atoms, 1)],
     ids=["smiles2conformers", "smiles2atoms"],
 )
-def test_rejects_unembeddable_smiles(convert, num_confs):
+def test_rejects_unembeddable_smiles(convert, num_confs, use_random_coords, hint):
     smiles = "[Fe](C)(C)(C)(C)(C)(C)(C)(C)"
-    message = f"rdkit embedded 0 of {num_confs} conformers of {smiles!r}"
-    with pytest.raises(ValueError, match=re.escape(message)):
-        convert(smiles)
+    message = f"rdkit embedded 0 of {num_confs} conformers of {smiles!r}{hint}"
+    with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+        convert(smiles, useRandomCoords=use_random_coords)
 
 
 def test_smiles2conformers_rejects_partial_embedding():
     smiles = "C1CC2CCC1C2"
     assert len(smiles2conformers(smiles, numConfs=10)) == 10
     with pytest.raises(
-        ValueError, match=r"^rdkit embedded [1-9] of 10 conformers of 'C1CC2CCC1C2'$"
+        ValueError,
+        match=(
+            r"^rdkit embedded [1-9] of 10 conformers of 'C1CC2CCC1C2'"
+            f"{re.escape(RANDOM_COORDS_HINT)}$"
+        ),
     ):
         smiles2conformers(smiles, numConfs=10, maxAttempts=1)
+
+
+@pytest.mark.parametrize("n_carbons", [56, 64])
+def test_smiles2atoms_embeds_long_chains_from_random_coords(n_carbons):
+    atoms = smiles2atoms("C" * n_carbons, seed=42, useRandomCoords=True)
+    assert atoms.get_chemical_formula() == f"C{n_carbons}H{2 * n_carbons + 2}"
+
+
+def test_smiles2conformers_embeds_long_chains_from_random_coords():
+    frames = smiles2conformers("C" * 56, numConfs=2, useRandomCoords=True)
+    assert [atoms.get_chemical_formula() for atoms in frames] == ["C56H114"] * 2
+    assert not np.allclose(frames[0].positions, frames[1].positions)

@@ -76,3 +76,10 @@ def test_smiles2atoms_reports_unparseable_smiles():
     assert (
         "Invalid value for 'smiles': rdkit cannot parse SMILES 'C1CC'" in result.output
     )
+
+
+def test_smiles2atoms_random_coords_embeds_long_chains():
+    result = runner.invoke(app, ["smiles2atoms", "C" * 56, "--random-coords"])
+    assert result.exit_code == 0, result.output
+    atoms = ase.io.read(io.StringIO(result.output), format="extxyz")
+    assert atoms.get_chemical_formula() == "C56H114"
