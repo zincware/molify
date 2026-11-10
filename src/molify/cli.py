@@ -86,13 +86,23 @@ def smiles2atoms(
     seed: Annotated[
         int, typer.Option(help="Random seed for conformer generation.")
     ] = 42,
+    random_coords: Annotated[
+        bool,
+        typer.Option(
+            "--random-coords",
+            help=(
+                "Start the embedding from random coordinates, which long chains"
+                " such as n-alkanes from about C56 on often need."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Convert a SMILES string into a single 3D structure on standard output.
 
     Example: molify smiles2atoms CCO --format XYZ > etoh.xyz
     """
     try:
-        atoms = _smiles2atoms(smiles, seed=seed)
+        atoms = _smiles2atoms(smiles, seed=seed, useRandomCoords=random_coords)
     except ValueError as err:
         raise typer.BadParameter(str(err), param_hint=["smiles"]) from err
     with io.StringIO() as handle:

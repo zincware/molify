@@ -124,6 +124,14 @@ For example, molify provides helper functions to generate 3D conformers directly
    # Generate 10 different 3D conformers of water
    water = molify.smiles2conformers("O", numConfs=10)
 
+Long chains, such as n-alkanes from about C56 on, often fail to embed from
+RDKit's default starting coordinates. Start them from random coordinates with
+``useRandomCoords=True``, or ``--random-coords`` on the command line.
+
+.. code-block:: python
+
+   alkane = molify.smiles2atoms("C" * 64, useRandomCoords=True)
+
 
 **Molecular System Building**
 

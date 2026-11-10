@@ -14,9 +14,58 @@ from ase.data.colors import jmol_colors
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from rdkit import Chem
+from rdkit.Chem import rdDistGeom
 from typing_extensions import deprecated
 
 from molify.constants import GraphAttr
+
+
+def embed_conformers(
+    mol: Chem.Mol,
+    smiles: str,
+    numConfs: int,  # noqa N803
+    randomSeed: int,  # noqa N803
+    maxAttempts: int,  # noqa N803
+    useRandomCoords: bool,  # noqa N803
+) -> None:
+    """Embed conformers into ``mol`` in place.
+
+    Parameters
+    ----------
+    mol : rdkit.Chem.Mol
+        Molecule with explicit hydrogens.
+    smiles : str
+        SMILES string named in the error message.
+    numConfs : int
+        Number of conformers to embed.
+    randomSeed : int
+        Random seed for the embedding.
+    maxAttempts : int
+        Maximum number of embedding attempts per conformer, 0 for RDKit's
+        default.
+    useRandomCoords : bool
+        Start each embedding from random coordinates instead of the
+        eigenvectors of the distance matrix.
+
+    Raises
+    ------
+    ValueError
+        If RDKit embeds fewer than ``numConfs`` conformers.
+    """
+    embedded = len(
+        rdDistGeom.EmbedMultipleConfs(
+            mol,
+            numConfs=numConfs,
+            randomSeed=randomSeed,
+            maxAttempts=maxAttempts,
+            useRandomCoords=useRandomCoords,
+        )
+    )
+    if embedded < numConfs:
+        message = f"rdkit embedded {embedded} of {numConfs} conformers of {smiles!r}"
+        if not useRandomCoords:
+            message += "; random starting coordinates often embed large molecules"
+        raise ValueError(message)
 
 
 def _is_atom_index(value) -> bool:
